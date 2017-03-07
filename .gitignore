@@ -3,8 +3,6 @@
 *.vm
 .gitignore
 
-#svn
-.svn/
 
 # built application files
 *.apk
@@ -17,6 +15,7 @@
 *.class
 
 # generated files
+target/
 bin/
 gen/
 
@@ -36,3 +35,6 @@ proguard/
 *.iws
 .idea/
 /pom.xml
+src/main/java/com/sdu/network/jsocket/aio/
+src/main/java/com/sdu/network/jsocket/bio/
+src/test/
