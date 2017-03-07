@@ -35,6 +35,4 @@ proguard/
 *.iws
 .idea/
 /pom.xml
-src/main/java/com/sdu/network/jsocket/aio/
-src/main/java/com/sdu/network/jsocket/bio/
 src/test/
