@@ -61,12 +61,16 @@ public class JFrameBuffer {
     private boolean internalRead() {
         try {
             if (_channel.read(_buffer) < 0) {
+                // Note:
+                //      SocketChannel.read() == -1, 原因:
+                //      1: Socket尚未建立连接
+                //      2: Socket另一端已关闭
                 return false;
             }
             return true;
         } catch (IOException e) {
             e.printStackTrace();
-            LOGGER.warn("Got an IOException in internalRead!", e);
+            LOGGER.warn("occur an IOException in internalRead!", e);
             return false;
         }
     }
@@ -91,7 +95,6 @@ public class JFrameBuffer {
 
                 // 重新分配Buffer
                 _buffer = ByteBuffer.allocate(frameSize);
-//                _buffer.putInt(frameSize);
                 // 更改QFrameBufferState状态[Socket数据包读取完成,开始读取Socket包体]
                 _state = QFrameBufferState.READING_FRAME;
             } else {
@@ -108,7 +111,7 @@ public class JFrameBuffer {
 
             // SelectionKey.OP_WRITE写事件, 只有通道空闲就会触发写事件[会造成CPU假高潮]
             // Note:
-            //      _selectionKey.interestOps(0)即取消注册的事件
+            //     _selectionKey.interestOps(0)即取消注册的事件
             if (_buffer.remaining() == 0) {
                 _selectionKey.interestOps(0);
                 _state = QFrameBufferState.READ_FRAME_COMPLETE;
@@ -116,7 +119,7 @@ public class JFrameBuffer {
             return true;
         }
 
-        LOGGER.error("Read was called but state is invalid ({})", _state);
+        LOGGER.error("read was called but state is invalid ({})", _state);
         return false;
     }
 
@@ -131,10 +134,13 @@ public class JFrameBuffer {
         if (_state == QFrameBufferState.WRITING) {
             try {
                 if (_channel.write(_buffer) < 0) {
+                    // Note:
+                    //      SocketChannel.write()
+                    //      1: Socket写数据首先确保通道是Open状态
                     return false;
                 }
             } catch (IOException e) {
-                LOGGER.warn("Got an IOException during write!", e);
+                LOGGER.warn("occur an IOException during write!", e);
                 return false;
             }
 

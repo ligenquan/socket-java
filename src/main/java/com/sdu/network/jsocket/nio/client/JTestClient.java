@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -36,7 +37,9 @@ public class JTestClient {
         public void fireRead(SocketChannel sc) throws IOException{
             ByteBuffer buffer = ByteBuffer.allocate(1024);
             int len = sc.read(buffer);
-            if (len > 0) {
+            if (len == -1) {
+              occurException(new ClosedChannelException());
+            } else if (len > 0) {
                 buffer.flip();
                 byte arr[] = new byte[buffer.remaining()];
                 buffer.get(arr);
@@ -49,7 +52,20 @@ public class JTestClient {
         public void fireWrite(SocketChannel sc) throws IOException{
             String content = "client send heart beat at " + SDF.format(new Date());
             // 写数据
-            sc.write(decode(content));
+            try {
+                sc.write(decode(content));
+            } catch (Exception e) {
+                occurException(e);
+            }
+        }
+
+        @Override
+        public void occurException(Exception e) {
+            if (e instanceof ClosedChannelException) {
+                LOGGER.error("remote socket channel closed exception", e);
+            } else if (e instanceof IOException) {
+                LOGGER.error("occur io exception", e);
+            }
         }
     }
 

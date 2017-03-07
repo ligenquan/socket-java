@@ -13,4 +13,6 @@ public interface JChannelHandler {
 
     public void fireWrite(SocketChannel sc) throws IOException;
 
+    public void occurException(Exception e);
+
 }

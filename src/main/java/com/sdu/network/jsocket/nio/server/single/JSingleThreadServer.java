@@ -1,5 +1,8 @@
 package com.sdu.network.jsocket.nio.server.single;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -22,6 +25,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author hanhan.zhang
  * */
 public class JSingleThreadServer {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(JSingleThreadServer.class);
+
     // 监听通道事件
     private Selector _selector;
 
@@ -77,6 +83,8 @@ public class JSingleThreadServer {
 
     private void doRead(SelectionKey key) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
+        InetSocketAddress socketAddress = (InetSocketAddress) sc.getRemoteAddress();
+        String remoteAddress = socketAddress.getHostName() + ":" + socketAddress.getPort();
         // 读取数据包头
         ByteBuffer buffer = ByteBuffer.allocate(4);
         int readSize = sc.read(buffer);
@@ -85,10 +93,8 @@ public class JSingleThreadServer {
             //  SocketChannel.read() == -1, 有两种情况:
             //  1: 连接没有打开
             //  2: 另一端已关闭
-            InetSocketAddress socketAddress = (InetSocketAddress) sc.getRemoteAddress();
-            String remoteAddress = socketAddress.getHostName() + ":" + socketAddress.getPort();
             sc.close();
-            System.out.println("远端连接[" + remoteAddress + "]已关闭, 关闭SocketChannel");
+            LOGGER.info("remote client {} close socket", remoteAddress);
             return;
         }
         if (buffer.remaining() == 0) {
@@ -101,7 +107,7 @@ public class JSingleThreadServer {
             if (buffer.remaining() == 0) {
                 buffer.flip();
                 // 读取数据包体成功, 开始业务处理并反馈客户端
-                System.out.println("server receive : " + new String(buffer.array()));
+                LOGGER.info("single thread server receive : {}, client = {}", new String(buffer.array()), remoteAddress);
                 // 读取客户端数据完成,响应客户端(注册写事件)
                 preWrite(key);
             }

@@ -21,7 +21,7 @@ public class JNioClient {
 
     private Selector _selector;
 
-    private AtomicBoolean _start = new AtomicBoolean(true);
+    private AtomicBoolean _started = new AtomicBoolean(true);
 
     private JChannelHandler _handler;
 
@@ -41,7 +41,7 @@ public class JNioClient {
         _sc.socket().setTcpNoDelay(true);
         // 连接服务器
         _sc.connect(new InetSocketAddress(host, port));
-        while (_start.get()) {
+        while (_started.get()) {
             _selector.select();
             Iterator<SelectionKey> it = _selector.selectedKeys().iterator();
             while (it.hasNext()) {
@@ -66,7 +66,7 @@ public class JNioClient {
         if (sc.isConnectionPending()) {
             boolean finished = sc.finishConnect();
             if (finished) {
-                _start.set(finished);
+                _started.set(finished);
                 // 更改SelectionKey的感兴趣事件, SelectionKey.OP_WRITE
                 key.interestOps(SelectionKey.OP_WRITE);
             }
@@ -87,4 +87,13 @@ public class JNioClient {
         key.interestOps(SelectionKey.OP_READ);
     }
 
+    public void stop() throws IOException {
+        if (_sc != null) {
+            _sc.close();
+        }
+        if (_selector != null) {
+            _selector.close();
+        }
+        _started.set(false);
+    }
 }

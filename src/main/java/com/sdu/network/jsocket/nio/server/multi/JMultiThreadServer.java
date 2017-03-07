@@ -34,7 +34,7 @@ public class JMultiThreadServer {
     private Selector _rwSelector;
     //
     private ServerSocketChannel _ssc;
-    private AtomicBoolean _stop = new AtomicBoolean(true);
+    private AtomicBoolean _stopped = new AtomicBoolean(true);
     // 工作线程
     private Set<Thread> workerThreads = new HashSet<>();
 
@@ -51,9 +51,9 @@ public class JMultiThreadServer {
         _ssc.register(_acceptSelector, SelectionKey.OP_ACCEPT);
         _ssc.bind(new InetSocketAddress(host, port));
         if (_ssc.isOpen()) {
-            _stop.set(false);
+            _stopped.set(false);
         }
-        while (!_stop.get()) {
+        while (!_stopped.get()) {
             _acceptSelector.select();
             Iterator<SelectionKey> it = _acceptSelector.selectedKeys().iterator();
             while (it.hasNext()) {
@@ -80,15 +80,17 @@ public class JMultiThreadServer {
         SocketChannel sc = (SocketChannel) key.channel();
         // 读取数据包头
         ByteBuffer buffer = ByteBuffer.allocate(4);
+        InetSocketAddress socketAddress = (InetSocketAddress) sc.getRemoteAddress();
+        String remoteAddress = socketAddress.getHostString() + ":" + socketAddress.getPort();
         int readSize = sc.read(buffer);
         if (readSize == -1) {
             // Note:
             //  SocketChannel.read() == -1, 有两种情况:
-            //  1: 连接没有打开
-            //  2: 另一端已关闭
-            InetSocketAddress socketAddress = (InetSocketAddress) sc.getRemoteAddress();
+            //  1: Socket尚未建立连接
+            //  2: 远端Socket关闭连接
+
             sc.close();
-            System.out.println("远端连接[" + socketAddress.toString() + "]已关闭, 关闭SocketChannel");
+            LOGGER.info("remote client {} closed socket", remoteAddress);
             return;
         }
         if (buffer.remaining() == 0) {
@@ -101,7 +103,7 @@ public class JMultiThreadServer {
             if (buffer.remaining() == 0) {
                 buffer.flip();
                 // 读取数据包体成功, 开始业务处理并反馈客户端
-                LOGGER.info("server receive : {}", new String(buffer.array()));
+                LOGGER.info("multi thread server receive : {}, client = {}", new String(buffer.array()), remoteAddress);
                 // 响应客户端(注册写事件)
                 preWrite(key);
             }
@@ -125,7 +127,7 @@ public class JMultiThreadServer {
     }
 
     public void close() throws IOException {
-        _stop.set(true);
+        _stopped.set(true);
         _acceptSelector.close();
         _rwSelector.select();
         _ssc.close();
@@ -146,14 +148,14 @@ public class JMultiThreadServer {
         @Override
         public void run() {
             try {
-                if (_sc.isConnected() && !_stop.get()) {
+                if (_sc.isConnected() && !_stopped.get()) {
                     _sc.configureBlocking(false);
                     // 设置Socket属性
                     _sc.socket().setKeepAlive(true);
                     _sc.socket().setTcpNoDelay(true);
                     // 注册通道事件
                     _sc.register(_selector, SelectionKey.OP_READ);
-                    while (!_stop.get()) {
+                    while (!_stopped.get()) {
                         _selector.select();
                         Iterator<SelectionKey> it = _selector.selectedKeys().iterator();
                         while (it.hasNext()) {
