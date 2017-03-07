@@ -1,0 +1,84 @@
+一: Socket重要参数
+
+  1: TCP_NODELAY
+
+    1': 纳格算法(Nagle)背景
+
+      当网络传输中存在大量小包传输时会严重影响传输效率,比如一个包[包头40字节,而真正内容只有一个字节或者几个字节],这样的传输效率十分低下.
+
+      纳格算法要解决的就是这种低效率的传输问题
+
+    2': 纳格算法原理(伪代码)
+
+      if there is new data to send:
+        if the window size >= MSS and available data is >= MSS:
+          send complete MSS segment now
+        else:
+          if there is unconfirmed data still in the pipe:
+            enqueue data in the buffer until an acknowledge is received
+          else:
+            send data immediately
+          end if
+        end if
+      end if
+
+      Note:
+        MMS为TCP包最大承载量
+
+    3: 纳格算法问题
+
+      纳格算法最大问题在于数据发送会延迟,将TCP_NODELAY设置True则将会关闭纳格算法,实现无延迟传输
+
+  2: SO_REUSEADDR
+
+    这套接字选项通知内核:
+
+      1': 如果端口忙且TCP状态为'TIME_WAIT',则可重用端口
+
+      2': 如果端口忙且TCP状态为其他状态,则重用端口抛出异常[地址已经使用]
+
+      Note:
+
+        如果服务程序停止后想立即重启且新套接字依旧使用同一端口,则'SO_REUSEADDR'选项非常有用
+
+  3: SO_LINGER
+
+    SO_LINGER选项对Socket.close()有影响:
+
+      1': 当设置False时,Socket.close()立即执行并返回,如果有未被送出的数据包则将未发送的数据包丢弃
+
+      2': 当设置True时,Socket.close()会延迟等待[最大等待时间65535],等待延迟时间是Socket.close()关闭需等待的时间
+
+  4: SO_TIMEOUT
+
+    SO_TIMEOUT选项控制客户端socket读取数据的超时时间[InputStream.read()超时时间]
+
+    Note:
+
+      如果timeout设置为0则一直阻塞,否则阻塞直到超时后直接抛超时异常
+
+  5: SO_SNDBU/SO_RCVBUF
+
+    设置输出流缓存区/输入流缓冲区大小,默认8096字节[8K]
+
+  6: SO_KEEPALIVE
+
+    如果SO_KEEPALIVE设置True,客户端每隔一定时间[系统内核参数配置]发送试探性的数据包,服务器有三种回应:
+
+      1': 服务器正常返回ACK则远程服务器OK,客户端不关闭连接而是等待一定时间再次发送试探性的数据包
+
+      2': 服务器返回RST则远程服务器挂了,客户端关闭连接
+
+      3': 服务器未响应这个数据包,一定时间后客户端再发送试探性数据包,若服务器还没响应则客户端关闭连接
+
+二: ServerSocket重要参数
+
+  1: backlog
+
+    设置输入连接(连接请求)的最大队列长度,如果队列满时收到连接指示则拒绝客户端连接
+
+    Note:
+
+      1': backlog默认参数50
+
+      2': 输入连接队列为FIFO

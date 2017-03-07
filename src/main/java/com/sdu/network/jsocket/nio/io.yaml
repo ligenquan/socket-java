@@ -1,0 +1,74 @@
+一: 概念
+
+  1: 同步与异步
+
+    同步和异步的概念与消息的通知机制有关, 也就是说同步与异步关注的是如何通知消息
+
+    Note:
+
+      1': Java NIO中, Selector.select()是同步等待管道事件
+
+      2': Java AIO中, 是异步等待事件触发[调用回调函数]
+
+  2: 阻塞与非阻塞
+
+    阻塞和非阻塞概念与程序等待数据(无所谓同步或者异步)时的状态有关, 也就是说, 阻塞与非阻塞相对于数据的处理
+
+    Note:
+
+      1': 在Java NIO中, Selector.select()有事件响应时, 数据已准备好则会非阻塞的方式读取[即不在等待数据]
+
+      2': Java AIO是非阻塞方式处理数据
+
+二: Java NIO
+
+  1: Selector
+
+    Selector轮询器监听Channel四类事件: OP_CONNECT, OP_ACCEPT, OP_READ, OP_WRITE
+
+    Selector包含3种类型SelectionKey集合:
+
+      1': ALL-KEY
+
+        Selector注册的SelectionKey的集合[Selector.keys()]
+
+      2': SELECTED-KEY
+
+        Selector监听到通道SelectionKey事件集合[Selector.selectedKeys()]
+
+      3': CANCELLED-KEY
+
+        Selector取消的SelectionKey的集合[Selector没提供访问集合的方法]
+
+    Note:
+
+      Java NIO中, Selector已阻塞方式监听通道事件, 唤醒阻塞的Selector, 其他线程通过Selector.wakeup(), 则阻塞线程解除阻塞
+
+
+  2: SelectionKey
+
+    SelectionKey是Channel与Channel Event映射封装,其主要职能有:
+
+      1': interest集合
+
+        Channel感兴趣的网络事件,如:
+
+        int interestSet = selectionKey.interestOps();
+        // 判断是否对OP_READ事件感兴趣
+        boolean isInterestedInRead = interestSet & SelectionKey.OP_READ == SelectionKey.OP_READ;
+
+      2': ready集合
+
+        通道已经准备就绪的操作的集合[SelectionKey.readyOps()]
+
+      3': 关联的Channel及注册的Selector
+
+        1'': SelectionKey.channel()返回注册的Channel
+
+        2'': SelectionKey.selector()返回注册到的Selector
+
+      4': 附加对象
+
+        1'': SelectionKey.attach(obj)添加附加对象
+
+        2'': SelectionKey.attachment()返回附加的对象
