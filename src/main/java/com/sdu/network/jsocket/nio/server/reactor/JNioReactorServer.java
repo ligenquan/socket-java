@@ -321,4 +321,19 @@ public class JNioReactorServer {
         startThread();
         waitForShutdown();
     }
+
+
+    public static void main(String[] args) throws Exception {
+        JServerArgs serverArgs = new JServerArgs();
+        serverArgs.setSelectorThreadNumber(4);
+        serverArgs.setQueueSizePerSelectorThread(10);
+        serverArgs.setMinWorkerThread(5);
+        serverArgs.setMaxWorkerThread(10);
+        serverArgs.setHost("127.0.0.1");
+        serverArgs.setPort(6721);
+
+        JNioReactorServer server = new JNioReactorServer(serverArgs);
+
+        server.serve();
+    }
 }
