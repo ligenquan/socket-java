@@ -1,0 +1,54 @@
+一: ChannelPipeline
+
+  ChannelPipeline是ChannelHandler的容器, 负责ChannelHandler的管理和事件拦截与调度
+
+  +---------------------------------------------------+---------------+
+  |                           ChannelPipeline         |               |
+  |                                                  \|/              |
+  |    +---------------------+            +-----------+----------+    |
+  |    | Inbound Handler  N  |            | Outbound Handler  1  |    |
+  |    +----------+----------+            +-----------+----------+    |
+  |              /|\                                  |               |
+  |               |                                  \|/              |
+  |    +----------+----------+            +-----------+----------+    |
+  |    | Inbound Handler N-1 |            | Outbound Handler  2  |    |
+  |    +----------+----------+            +-----------+----------+    |
+  |              /|\                                  .               |
+  |               .                                   .               |
+  | ChannelHandlerContext.fireIN_EVT() ChannelHandlerContext.OUT_EVT()|
+  |        [ method call]                       [method call]         |
+  |               .                                   .               |
+  |               .                                  \|/              |
+  |    +----------+----------+            +-----------+----------+    |
+  |    | Inbound Handler  2  |            | Outbound Handler M-1 |    |
+  |    +----------+----------+            +-----------+----------+    |
+  |              /|\                                  |               |
+  |               |                                  \|/              |
+  |    +----------+----------+            +-----------+----------+    |
+  |    | Inbound Handler  1  |            | Outbound Handler  M  |    |
+  |    +----------+----------+            +-----------+----------+    |
+  |              /|\                                  |               |
+  +---------------+-----------------------------------+---------------+
+                  |                                  \|/
+  +---------------+-----------------------------------+---------------+
+  |               |                                   |               |
+  |       [ Socket.read() ]                    [ Socket.write() ]     |
+  |                                                                   |
+  |  Netty Internal I/O Threads (Transport Implementation)            |
+  +-------------------------------------------------------------------+
+
+  Note:
+
+    AbstractChannel.pipeline() ---> DefaultChannelPipeline, 其构造函数:
+
+      protected DefaultChannelPipeline(Channel channel) {
+        this.channel = ObjectUtil.checkNotNull(channel, "channel");
+        succeededFuture = new SucceededChannelFuture(channel, null);
+        voidPromise =  new VoidChannelPromise(channel, true);
+
+        tail = new TailContext(this);
+        head = new HeadContext(this);
+
+        head.next = tail;
+        tail.prev = head;
+      }

@@ -1,0 +1,149 @@
+一: NioEventLoopGroup
+
+  NioEventLoopGroup管理EventLoop生命周期, 继承MultithreadEventLoopGroup, MultithreadEventLoopGroup是核心, 负责管理
+
+  EventLoop[Netty默认使用SingleThreadEventLoop]生命周期, 其主要的属性:
+
+    1: EventExecutor[] children
+
+       管理的EventLoop实例
+
+    2: EventExecutorChooserFactory.EventExecutorChooser chooser
+
+       EventLoop选择的策略抉择
+
+  Note:
+
+    1：MultithreadEventLoopGroup构造函数初始化EventLoop实例, EventLoop构建由MultithreadEventLoopGroup的抽象方法生成:
+
+      EventExecutor newChild(Executor executor, Object... args)
+
+      Note:
+
+        Executor作为NioEventLoop的构造函数参数传入NioEventLoop, Executor来自MultithreadEventLoopGroup, 即:
+
+          MultithreadEventExecutorGroup(int nThreads, ThreadFactory threadFactory, Object... args) {
+            this(nThreads, threadFactory == null ? null : new ThreadPerTaskExecutor(threadFactory), args);
+          }
+
+    2: MultithreadEventLoopGroup实质是EventExecutor的代理, 即MultithreadEventLoopGroup的任何方法由EventExecutorChooser
+
+      抉择EventLoop, 然后由EventLoop去真正执行
+
+二: NioEventLoop[EventLoop的实现类]
+
+  1：NioEventLoop负责处理客户端请求[即Socket通信]和内部任务的线程池[Netty默认使用SingleThreadEventLoop], 其主要属性:
+
+    1'：Selector selector:
+
+      通道事件就绪选择器
+
+    2'：SelectedSelectionKeySet selectedKeys:
+
+      Netty利用JDK的反射获取的Channel就绪事件集合
+
+      Note:
+        AccessController.doPrivileged使用
+
+    3'：SelectorProvider provider:
+
+      Selector的构建器
+
+    4'：volatile int ioRatio:
+
+      IO操作时间比例[即Socket数据通信时间]
+
+  Note:
+
+    NioEventLoop在构造函数中创建Selector, 并通过JDK的反射对"sun.nio.ch.SelectorImpl"属性selectedKeys/publicSelectedKeys
+
+    赋值为SelectedSelectionKeySet对象
+
+  2：NioEventLoop继承SingleThreadEventExecutor[只有一个线程], 其主要属性:
+
+    1': Executor executor
+
+      实质与MultithreadEventExecutorGroup.Executor同一引用
+
+      Note:
+
+        a': 若MultithreadEventLoopGroup构造函数没有指定Executor, 则使用ThreadPerTaskExecutor
+
+        b'：ThreadPerTaskExecutor实现Executor接口[每个任务分配一个线程], 实现如下:
+
+          public void execute(Runnable command) {
+            threadFactory.newThread(command).start();
+          }
+
+    2': Thread thread[Socket通信处理线程]
+
+      SingleThreadEventExecutor.execute(Runnable task)提交任务时, 若非是NioEventLoop的线程[即thread对象]提交, 则会启动
+
+      Thread, 然后在将任务加入任务队列, 代码实现:
+
+        public void execute(Runnable task) {
+          if (task == null) {
+            throw new NullPointerException("task");
+          }
+          boolean inEventLoop = inEventLoop();  // execute()方法调用线程是否是SingleThreadEventExecutor.Thread
+          if (inEventLoop) {
+            addTask(task);                      // 若是, 则直接将任务加入任务队列
+          } else {
+            startThread();                      // 若非[其他线程调用], 则启动SingleThreadEventExecutor.Thread线程
+            addTask(task);
+            if (isShutdown() && removeTask(task)) {
+                reject();
+            }
+          }
+
+          if (!addTaskWakesUp && wakesUpForTask(task)) {
+            wakeup(inEventLoop);
+          }
+        }
+
+
+      Note:
+
+        a'：SingleThreadEventExecutor.Thread线程启动:
+
+          若是Thread尚未启动, 则调用SingleThreadEventExecutor.doStartThread()[伪代码]:
+
+            private void doStartThread() {
+
+              // executor由MultithreadEventLoopGroup.Exector作为SingleThreadEventExecutor的构造参数传入
+              executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                  thread = Thread.currentThread();
+                  if (interrupted) {
+                    thread.interrupt();
+                  }
+
+                  try {
+                    SingleThreadEventExecutor.this.run();   // Note: run()抽象方法由子类实现
+                  } finally {
+                      // 关闭线程
+                      for (;;) {
+                        1'': 更改线程状态
+
+                        2'': 关闭线程
+                      }
+                  }
+                }
+              })
+            }
+
+        b': SingleThreadEventExecutor.Thread即为Executor工作线程引用
+
+        c'：SingleThreadEventExecutor.run()的子类实现, NioEventLoop[伪代码]实现:
+
+            protected void run() {
+                for (;;) {
+                  // 处理任务
+                }
+            }
+
+    3': NioEventLoop对JDK NIO Bug修正
+
+      NioEventLoop对Selector重建, 防止CPU利用率100%
+

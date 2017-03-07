@@ -1,0 +1,53 @@
+一: ByteBuf API
+
+  ByteBuf有readerIndex, writerIndex两位置指针, 其关系如下:
+
+    +-------------------+------------------+------------------+
+    | discardable bytes |  readable bytes  |  writable bytes  |
+    +-------------------+------------------+------------------+
+    |                   |                  |                  |
+    0      <=      readerIndex   <=   writerIndex    <=    capacity
+
+  Note:
+
+    readerIndex始终小于等于writerIndex
+
+  1: ByteBuf.clear()
+
+    clear将readerIndex, writerIndex置0, 示意图如下:
+
+      before clear:
+
+      +-------------------+------------------+------------------+
+      | discardable bytes |  readable bytes  |  writable bytes  |
+      +-------------------+------------------+------------------+
+      |                   |                  |                  |
+      0      <=      readerIndex   <=   writerIndex    <=    capacity
+
+      after clear:
+
+      +---------------------------------------------------------+
+      |             writable bytes (got more space)             |
+      +---------------------------------------------------------+
+      |                                                         |
+      0 = readerIndex = writerIndex            <=            capacity
+
+  2: ByteBuf.discardReadBytes()
+
+    discardReadBytes将已无用的字节空间转为可写字节空间, 示意图如下:
+
+      before discardReadBytes:
+
+      +-------------------+------------------+------------------+
+      | discardable bytes |  readable bytes  |  writable bytes  |
+      +-------------------+------------------+------------------+
+      |                   |                  |                  |
+      0      <=      readerIndex   <=   writerIndex    <=    capacity
+
+      after discardReadBytes
+
+      +------------------+--------------------------------------+
+      |  readable bytes  |    writable bytes (got more space)   |
+      +------------------+--------------------------------------+
+      |                  |                                      |
+      readerIndex (0) <= writerIndex (decreased)        <=        capacity

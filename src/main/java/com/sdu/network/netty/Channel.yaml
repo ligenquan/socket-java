@@ -1,0 +1,19 @@
+一: Netty Channel API
+
+  1: ChannelConfig config()
+
+     ChannelConfig主要用于设置Socket属性:
+
+       如: NioServerSocketChannel ==> NioServerSocketChannelConfig
+
+  2: ChannelPipeline pipeline()
+
+    ChannelPipeline主要用于处理网络IO数据读写操作
+
+  3: EventLoop eventLoop()
+
+    EventLoop是Channel注册的线程池
+
+  4: Unsafe unsafe()
+
+    Unsafe负责底层网络Connect、Register、Read和Write等操作

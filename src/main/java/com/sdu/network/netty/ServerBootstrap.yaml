@@ -1,0 +1,92 @@
+一: ServerBootstrap
+
+  ServerBootstrap是Netty Server启动的辅助类, 主要职责有:
+
+    1: 设置Channel(设置Channel并实例化ChannelFactory)
+
+    2: Channel属性
+
+      1': ServerBootstrap.option()
+
+        设置ServerSocketChannel属性
+
+      2': ServerBootstrap.childOption()
+
+        设置SocketChannel属性
+
+    3: Boss EventLoopGroup/Worker EventLoopGroup
+
+      1': ServerBootstrap.group(boss, worker)
+
+      2': ServerBootstrap.group(group)
+
+          实质: Boss/Worker EventLoopGroup相同
+
+    4: 设置Child ChannelHandler
+
+      ServerBootstrap.childHandler()
+
+      Note:
+
+        1' ServerBootstrap的ServerSocketChannel的ChannelHandler只有一个:
+
+          ServerBootstrap.ServerBootstrapAcceptor
+
+        2' ServerBootstrap的Boss EventLoop关联的Channel负责监听SelectionKey.OP_ACCEPT, 而OP_ACCEPT处理:
+
+          if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
+              unsafe.read();
+          }
+
+          Unsafe.read调用链:
+
+            AbstractNioMessageChannel.NioMessageUnsafe.read()
+                |
+                |-----> AbstractNioMessageChannel.doReadMessages()[由子类实现]
+                            |
+                            |------> NioServerSocketChannel.doReadMessages()
+
+            Note:
+
+              在NioServerSocketChannel.doReadMessages()中接收客户端连接
+
+          因此, ServerBootstrapAcceptor只重写channelRead方法, 其实现:
+
+            1': 设置SocketChannel Channel配置[将ServerBootstrap.childOptions赋值给SocketChannel]
+
+            2': 设置SocketChannel的ChannelHandler[将ServerBootstrap.childHandler赋值给SocketChannel]
+
+            3': 将SocketChannel注册到Worker EventLoop中
+
+
+二: ServerBootstrap API
+
+  1: ServerBootstrap.bind()
+
+      1': ServerBootstrap.init(Channel channel)
+
+          Channel属性设置
+
+      2': EventLoopGroup.register(Channel channel) [ServerSocketChannel.register(selector, ops)]
+            |
+            |-----> Channel.unsafe.register(EventLoop eventLoop, ChannelPromise promise)
+
+          Note:
+
+            AbstractUnsafe.register(EventLoop eventLoop, final ChannelPromise promise)
+              |
+              |-----> AbstractNioChannel.doRegister()
+
+
+      3':  AbstractBootstrap.doBind0(Channel channel)
+              |
+              |-----> channel.eventLoop().execute(task)
+                          |
+                          |-----> task: AbstractChannel.bind(SocketAddress localAddress, ChannelPromise promise)
+                              |
+                              |------> DefaultChannelPipeline.bind(ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise)
+                                          |
+                                          |------> Unsafe.bind()
+
+
+
