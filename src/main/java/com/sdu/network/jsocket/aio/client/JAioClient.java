@@ -1,5 +1,6 @@
 package com.sdu.network.jsocket.aio.client;
 
+import com.sdu.network.jsocket.aio.buf.JAioFrameBuffer;
 import com.sdu.network.jsocket.aio.handle.JAioChannelHandler;
 import com.sdu.network.jsocket.aio.utils.JAioUtils;
 import lombok.Getter;
@@ -30,10 +31,13 @@ public class JAioClient {
 
     private AsynchronousSocketChannel asyncSocketChannel;
 
-    private static ScheduledExecutorService scheduledExecutorService;
+    private JAioChannelHandler channelHandler;
+
+    private ScheduledExecutorService scheduledExecutorService;
 
     public JAioClient(JClientArgs args) {
         this.args = args;
+        channelHandler = new DefaultAioChannelHandler();
         ThreadFactory threadFactory = JAioUtils.buildThreadFactory("schedule-thread-%d", false);
         scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(threadFactory);
     }
@@ -45,34 +49,15 @@ public class JAioClient {
         asyncSocketChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
         asyncSocketChannel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
         asyncSocketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);
-        asyncSocketChannel.connect(args.getRemoteAddress(), null, new CompletionHandler<Void, Void>() {
+        asyncSocketChannel.connect(args.getRemoteAddress(), asyncSocketChannel, new CompletionHandler<Void, AsynchronousSocketChannel>() {
             @Override
-            public void completed(Void result, Void attachment) {
-                args.channelHandler.fireConnectComplete(asyncSocketChannel);
+            public void completed(Void result, AsynchronousSocketChannel attachment) {
+                channelHandler.fireConnectComplete(attachment);
             }
 
             @Override
-            public void failed(Throwable exc, Void attachment) {
+            public void failed(Throwable exc, AsynchronousSocketChannel attachment) {
                 LOGGER.error("occur connect exception in {} thread", Thread.currentThread().getName(), exc);
-            }
-        });
-
-        // 读回调函数
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-        asyncSocketChannel.read(buffer, null, new CompletionHandler<Integer, Void>() {
-            @Override
-            public void completed(Integer result, Void attachment) {
-                args.getChannelHandler().fireReadComplete(asyncSocketChannel, result, buffer);
-            }
-
-            @Override
-            public void failed(Throwable exc, Void attachment) {
-                LOGGER.info("io thread = {}, remote address closed", Thread.currentThread().getName());
-                try {
-                    asyncSocketChannel.close();
-                } catch (IOException e) {
-                    args.getChannelHandler().occurException(asyncSocketChannel, e);
-                }
             }
         });
 
@@ -82,52 +67,60 @@ public class JAioClient {
     @Setter
     @Getter
     public static final class JClientArgs {
-
+        // 读缓冲区
+        private int readBufferSize;
         // 远端服务地址
         private InetSocketAddress remoteAddress;
-
         // IO Event线程数
         private int ioThreads;
-
-        private JAioChannelHandler channelHandler;
     }
 
-    private static class DefaultAioChannelHandler implements JAioChannelHandler {
+    private class DefaultAioChannelHandler implements JAioChannelHandler {
 
         @Override
         public void fireConnectComplete(AsynchronousSocketChannel asyncSocketChannel) {
-            try {
-                if (asyncSocketChannel.isOpen()) {
-                    InetSocketAddress remoteAddress = (InetSocketAddress) asyncSocketChannel.getRemoteAddress();
-                    String address = remoteAddress.getHostString() + ":" + remoteAddress.getPort();
-                    LOGGER.info("io thread = {}, remote address = {}, connect success", Thread.currentThread().getName(), address);
-                    ByteBuffer buffer = ByteBuffer.allocate(1024);
-
-                    // 定时向服务器端发送消息
-                    scheduledExecutorService.scheduleAtFixedRate(() -> {
-                        buffer.clear();
-                        buffer.put("heart beat".getBytes());
-                        asyncSocketChannel.write(buffer, null, new CompletionHandler<Integer, Void>() {
-                            @Override
-                            public void completed(Integer result, Void attachment) {
-                                fireWriteComplete(asyncSocketChannel, result, buffer);
-                            }
-
-                            @Override
-                            public void failed(Throwable exc, Void attachment) {
-                                LOGGER.info("io thread = {}, remote address = {}, closed", Thread.currentThread().getName(), remoteAddress);
-                                try {
-                                    asyncSocketChannel.close();
-                                } catch (IOException e) {
-                                    occurException(asyncSocketChannel, e);
-                                }
-                            }
-                        });
-                    }, 1, 1, TimeUnit.SECONDS);
-                }
-            } catch (Exception e) {
-                occurException(asyncSocketChannel, e);
+            if (!asyncSocketChannel.isOpen()) {
+                return;
             }
+
+            // 注册读回调函数
+            ByteBuffer readBuffer = ByteBuffer.allocate(args.getReadBufferSize());
+            JAioFrameBuffer jAioFrameBuffer = new JAioFrameBuffer(asyncSocketChannel, readBuffer);
+            asyncSocketChannel.read(readBuffer, jAioFrameBuffer, new CompletionHandler<Integer, JAioFrameBuffer>() {
+                @Override
+                public void failed(Throwable exc, JAioFrameBuffer attachment) {
+                    try {
+                        attachment.closeChannel();
+                    } catch (IOException e) {
+                        channelHandler.occurException(attachment.getAsyncSocketChannel(), e);
+                    }
+                }
+
+                @Override
+                public void completed(Integer result, JAioFrameBuffer attachment) {
+                    fireReadComplete(asyncSocketChannel, result, jAioFrameBuffer);
+                }
+
+            });
+
+            String msg = "heart beat";
+            // 定时向服务器端发送消息
+            scheduledExecutorService.scheduleAtFixedRate(() -> jAioFrameBuffer.write(msg), 1, 1, TimeUnit.SECONDS);
+        }
+
+        @Override
+        public void fireReadComplete(AsynchronousSocketChannel asyncSocketChannel, int readSize, JAioFrameBuffer jAioFrameBuffer) {
+
+            do {
+                // 读取一个数据包
+                byte[] bytes = jAioFrameBuffer.read();
+                if (bytes != null) {
+                    LOGGER.info("io thread = {}, receive : {}", Thread.currentThread().getName(), new String(bytes));
+                }
+                jAioFrameBuffer.preRead();
+            } while (jAioFrameBuffer.hasReadRemaining());
+
+            jAioFrameBuffer.compactReadBuffer();
         }
 
         @Override
@@ -136,16 +129,8 @@ public class JAioClient {
         }
 
         @Override
-        public void fireReadComplete(AsynchronousSocketChannel asyncSocketChannel, int readSize, ByteBuffer buffer) {
-            buffer.flip();
-            String content = new String(buffer.array());
-            buffer.clear();
-            LOGGER.info("io thread = {}, size = {}, read content = {}", Thread.currentThread().getName(), readSize, content);
-        }
-
-        @Override
         public void fireWriteComplete(AsynchronousSocketChannel asyncSocketChannel, int writeSize, ByteBuffer buffer) {
-            LOGGER.info("id thread = {}, write byte size = {}", Thread.currentThread().getName(), writeSize);
+
         }
 
         @Override
@@ -158,7 +143,6 @@ public class JAioClient {
         JClientArgs clientArgs = new JClientArgs();
         clientArgs.setIoThreads(5);
         clientArgs.setRemoteAddress(new InetSocketAddress(JAioUtils.getIpV4(), 6712));
-        clientArgs.setChannelHandler(new DefaultAioChannelHandler());
 
         //
         JAioClient client = new JAioClient(clientArgs);

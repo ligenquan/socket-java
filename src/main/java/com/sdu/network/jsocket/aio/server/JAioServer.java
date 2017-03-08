@@ -1,5 +1,6 @@
 package com.sdu.network.jsocket.aio.server;
 
+import com.sdu.network.jsocket.aio.buf.JAioFrameBuffer;
 import com.sdu.network.jsocket.aio.handle.JAioChannelHandler;
 import com.sdu.network.jsocket.aio.utils.JAioUtils;
 import lombok.Getter;
@@ -29,12 +30,14 @@ public class JAioServer {
 
     private AsynchronousServerSocketChannel asyncServerChannel;
 
+    private DefaultAioChannelHandler channelHandler;
+
     public JAioServer(JServerArgs args) {
-       this.args = args;
+        this.args = args;
+        channelHandler = new DefaultAioChannelHandler();
     }
 
     public void start() throws IOException, InterruptedException {
-        //
         ThreadFactory threadFactory = JAioUtils.buildThreadFactory("aio-io-event-thread-%d", false);
         AsynchronousChannelGroup asyncChannelGroup = AsynchronousChannelGroup.withFixedThreadPool(args.getIoThreads(), threadFactory);
         asyncServerChannel = AsynchronousServerSocketChannel.open(asyncChannelGroup);
@@ -46,7 +49,7 @@ public class JAioServer {
                 // 继续接收连接
                 asyncServerChannel.accept(null, this);
                 // 在IO线程中处理[即在AsynchronousChannelGroup提供的线程池完成]
-                args.getChannelHandler().fireAcceptComplete(asyncSocketChannel);
+                channelHandler.fireAcceptComplete(asyncSocketChannel);
             }
 
             @Override
@@ -62,23 +65,24 @@ public class JAioServer {
     @Setter
     @Getter
     public static final class JServerArgs {
+        // 读缓冲区
+        private int readBufferSize;
+        // 写缓冲区
+        private int writeBufferSize;
         // 最大连接数
         private int backlog;
-
         // 绑定服务地址
         private InetSocketAddress bindAddress;
-
         // IO Event线程数
         private int ioThreads;
-
-        private JAioChannelHandler channelHandler;
     }
 
 
     /**
      * AIO事件处理
      * */
-    private static class DefaultAioChannelHandler implements JAioChannelHandler {
+    private class DefaultAioChannelHandler implements JAioChannelHandler {
+
         @Override
         public void fireConnectComplete(AsynchronousSocketChannel asyncSocketChannel) {
             throw new UnsupportedOperationException("not support connect operation");
@@ -86,36 +90,42 @@ public class JAioServer {
 
         @Override
         public void fireAcceptComplete(AsynchronousSocketChannel asyncSocketChannel) {
+            if (!asyncSocketChannel.isOpen()) {
+                return;
+            }
+
+            // Socket操作前提是通道已被打开
             try {
-                if (asyncSocketChannel.isOpen()) {
-                    asyncSocketChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-                    asyncSocketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);
-                    asyncSocketChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
-                    asyncSocketChannel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
-                    // Socket操作前提是通道已被打开
-                    InetSocketAddress remoteAddress = (InetSocketAddress) asyncSocketChannel.getRemoteAddress();
-                    String address = remoteAddress.getHostString() + ":" + remoteAddress.getPort();
-                    LOGGER.info("io thread = {}, client address = {}, accept connect", Thread.currentThread().getName(), address);
+                // socket参数设置
+                asyncSocketChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
+                asyncSocketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+                asyncSocketChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
+                asyncSocketChannel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
 
-                    // 读监听回调函数
-                    ByteBuffer readBuffer = ByteBuffer.allocate(1024);
-                    asyncSocketChannel.read(readBuffer, null, new CompletionHandler<Integer, Void>() {
-                        @Override
-                        public void completed(Integer result, Void attachment) {
-                            fireReadComplete(asyncSocketChannel, result, readBuffer);
-                        }
+                // 客户端连接信息
+                InetSocketAddress remoteAddress = (InetSocketAddress) asyncSocketChannel.getRemoteAddress();
+                String address = remoteAddress.getHostString() + ":" + remoteAddress.getPort();
+                LOGGER.info("io thread = {}, client address = {}, accept connect", Thread.currentThread().getName(), address);
 
-                        @Override
-                        public void failed(Throwable exc, Void attachment) {
-                            LOGGER.info("io thread = {}, client address = {}, closed", Thread.currentThread().getName(), address);
-                            try {
-                                asyncSocketChannel.close();
-                            } catch (IOException e) {
-                                occurException(asyncSocketChannel, e);
-                            }
+                // 注册读回调函数[AsynchronousSocketChannel对应一个ByteBuffer]
+                ByteBuffer readBuffer = ByteBuffer.allocate(args.getReadBufferSize());
+                JAioFrameBuffer aioFrameBuffer = new JAioFrameBuffer(asyncSocketChannel, readBuffer);
+                asyncSocketChannel.read(readBuffer, aioFrameBuffer, new CompletionHandler<Integer, JAioFrameBuffer>() {
+                    @Override
+                    public void completed(Integer result, JAioFrameBuffer attachment) {
+                        fireReadComplete(asyncSocketChannel, result, attachment);
+                    }
+
+                    @Override
+                    public void failed(Throwable exc, JAioFrameBuffer attachment) {
+                        try {
+                            attachment.closeChannel();
+                        } catch (IOException e) {
+                            occurException(attachment.getAsyncSocketChannel(), e);
                         }
-                    });
-                }
+                    }
+                });
+
             } catch (Exception e) {
                 occurException(asyncSocketChannel, e);
             }
@@ -123,28 +133,26 @@ public class JAioServer {
         }
 
         @Override
-        public void fireReadComplete(AsynchronousSocketChannel asyncSocketChannel, int readSize, ByteBuffer buffer) {
-            buffer.flip();
-            LOGGER.info("io thread = {}, read size = {}, content = {}", Thread.currentThread().getName(), readSize, new String(buffer.array()));
-            buffer.clear();
+        public void fireReadComplete(AsynchronousSocketChannel asyncSocketChannel, int readSize, JAioFrameBuffer jAioFrameBuffer) {
+            try {
+                String threadName = Thread.currentThread().getName();
+                InetSocketAddress remoteAddress = (InetSocketAddress) asyncSocketChannel.getRemoteAddress();
+                String address = remoteAddress.getHostString() + ":" + remoteAddress.getPort();
 
-            // 写回调函数
-            asyncSocketChannel.write(buffer, null, new CompletionHandler<Integer, Void>() {
-                @Override
-                public void completed(Integer result, Void attachment) {
-                    fireWriteComplete(asyncSocketChannel, result, buffer);
-                }
-
-                @Override
-                public void failed(Throwable exc, Void attachment) {
-                    LOGGER.info("io thread = {}, client closed", Thread.currentThread().getName());
-                    try {
-                        asyncSocketChannel.close();
-                    } catch (IOException e) {
-                        occurException(asyncSocketChannel, e);
+                do {
+                    byte[] bytes = jAioFrameBuffer.read();
+                    if (bytes != null) {
+                        LOGGER.info("io thread = {}, client = {}, content = {}", threadName, address, new String(bytes));
+                        //
+                        jAioFrameBuffer.write("OK");
                     }
-                }
-            });
+                    jAioFrameBuffer.preRead();
+                    jAioFrameBuffer.compactReadBuffer();
+                } while (jAioFrameBuffer.hasReadRemaining());
+
+            } catch (Exception e) {
+                // ignore
+            }
         }
 
         @Override
@@ -161,10 +169,11 @@ public class JAioServer {
     public static void main(String[] args) throws Exception {
 
         JServerArgs serverArgs = new JServerArgs();
+        serverArgs.setReadBufferSize(1024);
+        serverArgs.setWriteBufferSize(1024);
         serverArgs.setIoThreads(Runtime.getRuntime().availableProcessors());
         serverArgs.setBacklog(100);
         serverArgs.setBindAddress(new InetSocketAddress(JAioUtils.getIpV4(), 6712));
-        serverArgs.setChannelHandler(new DefaultAioChannelHandler());
 
         //
         JAioServer server = new JAioServer(serverArgs);

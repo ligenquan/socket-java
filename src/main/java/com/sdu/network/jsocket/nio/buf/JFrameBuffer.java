@@ -21,7 +21,7 @@ public class JFrameBuffer {
     private long MAX_FRAME_SIZE = Long.MAX_VALUE;
 
     // Socket读取状态
-    private QFrameBufferState _state = QFrameBufferState.READING_FRAME_SIZE;
+    private JFrameBufferState _state = JFrameBufferState.READING_FRAME_SIZE;
 
     // 缓冲区[socket read/write]
     private ByteBuffer _buffer;
@@ -77,7 +77,7 @@ public class JFrameBuffer {
 
     public boolean doRead() {
         // 读取Socket数据包包头[_buffer初始化长度为4个字节]
-        if (_state == QFrameBufferState.READING_FRAME_SIZE) {
+        if (_state == JFrameBufferState.READING_FRAME_SIZE) {
             if (!internalRead()) {
                 return false;
             }
@@ -96,7 +96,7 @@ public class JFrameBuffer {
                 // 重新分配Buffer
                 _buffer = ByteBuffer.allocate(frameSize);
                 // 更改QFrameBufferState状态[Socket数据包读取完成,开始读取Socket包体]
-                _state = QFrameBufferState.READING_FRAME;
+                _state = JFrameBufferState.READING_FRAME;
             } else {
                 // socket没有数据传输
                 return true;
@@ -104,7 +104,7 @@ public class JFrameBuffer {
         }
 
         // 读取Socket数据包包体
-        if (_state == QFrameBufferState.READING_FRAME) {
+        if (_state == JFrameBufferState.READING_FRAME) {
             if (!internalRead()) {
                 return false;
             }
@@ -114,7 +114,7 @@ public class JFrameBuffer {
             //     _selectionKey.interestOps(0)即取消注册的事件
             if (_buffer.remaining() == 0) {
                 _selectionKey.interestOps(0);
-                _state = QFrameBufferState.READ_FRAME_COMPLETE;
+                _state = JFrameBufferState.READ_FRAME_COMPLETE;
             }
             return true;
         }
@@ -127,11 +127,11 @@ public class JFrameBuffer {
     private void prepareRead() {
         _selectionKey.interestOps(SelectionKey.OP_READ);
         _buffer = ByteBuffer.allocate(4);
-        _state = QFrameBufferState.READING_FRAME_SIZE;
+        _state = JFrameBufferState.READING_FRAME_SIZE;
     }
 
     public boolean doWrite() {
-        if (_state == QFrameBufferState.WRITING) {
+        if (_state == JFrameBufferState.WRITING) {
             try {
                 if (_channel.write(_buffer) < 0) {
                     // Note:
@@ -164,19 +164,19 @@ public class JFrameBuffer {
 
     // Socket数据包是否完全读取
     public boolean isFrameFullyRead() {
-        return _state == QFrameBufferState.READ_FRAME_COMPLETE;
+        return _state == JFrameBufferState.READ_FRAME_COMPLETE;
     }
 
     /**
      * 根据FrameBuffer当前状态修改SelectionKey关注事件
      * */
     private void changeSelectInterests() {
-        if (_state == QFrameBufferState.AWAITING_REGISTER_WRITE) {
+        if (_state == JFrameBufferState.AWAITING_REGISTER_WRITE) {
             _selectionKey.interestOps(SelectionKey.OP_WRITE);
-            _state = QFrameBufferState.WRITING;
-        } else if (_state == QFrameBufferState.AWAITING_REGISTER_READ) {
+            _state = JFrameBufferState.WRITING;
+        } else if (_state == JFrameBufferState.AWAITING_REGISTER_READ) {
             prepareRead();
-        } else if (_state == QFrameBufferState.AWAITING_CLOSE) {
+        } else if (_state == JFrameBufferState.AWAITING_CLOSE) {
             close();
         } else {
             LOGGER.error("changeSelectInterest was called, but state is invalid ({})", _state);
@@ -194,11 +194,11 @@ public class JFrameBuffer {
             // 服务端无数据响应, 则直接更改FrameBuffer状态为AWAITING_REGISTER_READ
             // Note:
             //   此处Buffer设置null, 在changeSelectInterests中将SelectionKey注册OP_READ事件并对Buffer初始化
-            _state = QFrameBufferState.AWAITING_REGISTER_READ;
+            _state = JFrameBufferState.AWAITING_REGISTER_READ;
             _buffer = null;
         } else {
             // 服务端响应, 则更改FrameBuffer状态AWAITING_REGISTER_WRITE
-            _state = QFrameBufferState.AWAITING_REGISTER_WRITE;
+            _state = JFrameBufferState.AWAITING_REGISTER_WRITE;
             _buffer = ByteBuffer.wrap(_outputBuffer.getBuffer(), _outputBuffer.getBufferPosition(), _outputBuffer.getBufferLength());
         }
         // 更改SelectionKey状态
@@ -222,11 +222,11 @@ public class JFrameBuffer {
         }
 
         // 发生异常, FrameBuffer状态更改为AWAITING_CLOSE
-        _state = QFrameBufferState.AWAITING_CLOSE;
+        _state = JFrameBufferState.AWAITING_CLOSE;
         changeSelectInterests();
     }
 
-    private enum QFrameBufferState {
+    private enum JFrameBufferState {
         // 读Frame消息头,实际是4字节表示Frame长度(解决Socket粘包/拆包问题)
         READING_FRAME_SIZE,
         // 读Frame消息体
