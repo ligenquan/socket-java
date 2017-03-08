@@ -8,13 +8,13 @@ import java.nio.channels.AsynchronousSocketChannel;
  * */
 public interface JAioChannelHandler {
 
-    public void fireConnect(AsynchronousSocketChannel asyncSocketChannel);
+    public void fireConnectComplete(AsynchronousSocketChannel asyncSocketChannel);
 
-    public void fireAccept(AsynchronousSocketChannel asyncSocketChannel);
+    public void fireAcceptComplete(AsynchronousSocketChannel asyncSocketChannel);
 
-    public void fireRead(AsynchronousSocketChannel asyncSocketChannel, int readSize, ByteBuffer buffer);
+    public void fireReadComplete(AsynchronousSocketChannel asyncSocketChannel, int readSize, ByteBuffer buffer);
 
-    public void fireWrite(AsynchronousSocketChannel asyncSocketChannel, int writeSize, ByteBuffer buffer);
+    public void fireWriteComplete(AsynchronousSocketChannel asyncSocketChannel, int writeSize, ByteBuffer buffer);
 
     public void occurException(AsynchronousSocketChannel asyncSocketChannel, Throwable t);
 

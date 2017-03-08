@@ -46,7 +46,7 @@ public class JAioServer {
                 // 继续接收连接
                 asyncServerChannel.accept(null, this);
                 // 在IO线程中处理[即在AsynchronousChannelGroup提供的线程池完成]
-                args.getChannelHandler().fireAccept(asyncSocketChannel);
+                args.getChannelHandler().fireAcceptComplete(asyncSocketChannel);
             }
 
             @Override
@@ -80,12 +80,12 @@ public class JAioServer {
      * */
     private static class DefaultAioChannelHandler implements JAioChannelHandler {
         @Override
-        public void fireConnect(AsynchronousSocketChannel asyncSocketChannel) {
+        public void fireConnectComplete(AsynchronousSocketChannel asyncSocketChannel) {
             throw new UnsupportedOperationException("not support connect operation");
         }
 
         @Override
-        public void fireAccept(AsynchronousSocketChannel asyncSocketChannel) {
+        public void fireAcceptComplete(AsynchronousSocketChannel asyncSocketChannel) {
             try {
                 if (asyncSocketChannel.isOpen()) {
                     asyncSocketChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
@@ -95,19 +95,24 @@ public class JAioServer {
                     // Socket操作前提是通道已被打开
                     InetSocketAddress remoteAddress = (InetSocketAddress) asyncSocketChannel.getRemoteAddress();
                     String address = remoteAddress.getHostString() + ":" + remoteAddress.getPort();
-                    LOGGER.info("accept client {} connect, io thread : {}", address, Thread.currentThread().getName());
+                    LOGGER.info("io thread = {}, client address = {}, accept connect", Thread.currentThread().getName(), address);
 
-                    //
+                    // 读监听回调函数
                     ByteBuffer readBuffer = ByteBuffer.allocate(1024);
                     asyncSocketChannel.read(readBuffer, null, new CompletionHandler<Integer, Void>() {
                         @Override
                         public void completed(Integer result, Void attachment) {
-                            fireRead(asyncSocketChannel, result, readBuffer);
+                            fireReadComplete(asyncSocketChannel, result, readBuffer);
                         }
 
                         @Override
                         public void failed(Throwable exc, Void attachment) {
-                            LOGGER.error("occur read exception in {} thread", Thread.currentThread().getName(), exc);
+                            LOGGER.info("io thread = {}, client address = {}, closed", Thread.currentThread().getName(), address);
+                            try {
+                                asyncSocketChannel.close();
+                            } catch (IOException e) {
+                                occurException(asyncSocketChannel, e);
+                            }
                         }
                     });
                 }
@@ -118,25 +123,32 @@ public class JAioServer {
         }
 
         @Override
-        public void fireRead(AsynchronousSocketChannel asyncSocketChannel, int readSize, ByteBuffer buffer) {
+        public void fireReadComplete(AsynchronousSocketChannel asyncSocketChannel, int readSize, ByteBuffer buffer) {
             buffer.flip();
             LOGGER.info("io thread = {}, read size = {}, content = {}", Thread.currentThread().getName(), readSize, new String(buffer.array()));
             buffer.clear();
+
+            // 写回调函数
             asyncSocketChannel.write(buffer, null, new CompletionHandler<Integer, Void>() {
                 @Override
                 public void completed(Integer result, Void attachment) {
-                    fireWrite(asyncSocketChannel, result, buffer);
+                    fireWriteComplete(asyncSocketChannel, result, buffer);
                 }
 
                 @Override
                 public void failed(Throwable exc, Void attachment) {
-                    LOGGER.error("occur write exception in {} thread", Thread.currentThread().getName(), exc);
+                    LOGGER.info("io thread = {}, client closed", Thread.currentThread().getName());
+                    try {
+                        asyncSocketChannel.close();
+                    } catch (IOException e) {
+                        occurException(asyncSocketChannel, e);
+                    }
                 }
             });
         }
 
         @Override
-        public void fireWrite(AsynchronousSocketChannel asyncSocketChannel, int writeSize, ByteBuffer buffer) {
+        public void fireWriteComplete(AsynchronousSocketChannel asyncSocketChannel, int writeSize, ByteBuffer buffer) {
 
         }
 
