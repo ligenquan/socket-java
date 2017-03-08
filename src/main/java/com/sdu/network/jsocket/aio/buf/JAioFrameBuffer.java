@@ -40,7 +40,7 @@ public class JAioFrameBuffer {
     }
 
     public boolean hasReadRemaining() {
-        return readBuffer.hasRemaining() && state == JFrameBufferState.READ_FRAME_COMPLETE;
+        return readBuffer.hasRemaining() && state == JFrameBufferState.READ_FRAME_COMPLETE ;
     }
 
     public void preRead() {
@@ -81,6 +81,7 @@ public class JAioFrameBuffer {
             byte []bytes = new byte[packageHead];
             readBuffer.get(bytes);
             state = JFrameBufferState.READ_FRAME_COMPLETE;
+            return bytes;
         }
 
         throw new IllegalStateException("illegal frame buffer state");
@@ -91,10 +92,15 @@ public class JAioFrameBuffer {
         readBuffer.compact();
     }
 
+    public ByteBuffer getReadBuffer() {
+        return readBuffer;
+    }
+
     public Future<Integer> write(String content) {
         ByteBuffer buffer = ByteBuffer.allocate(content.length() + 4);
         buffer.putInt(content.length());
         buffer.put(content.getBytes());
+        buffer.flip();
         return asyncSocketChannel.write(buffer);
     }
 
@@ -105,7 +111,7 @@ public class JAioFrameBuffer {
         // 读Frame消息体
         READING_FRAME,
         // 读满包(Socket数据包读取完成)
-        READ_FRAME_COMPLETE;
+        READ_FRAME_COMPLETE
     }
 
 }

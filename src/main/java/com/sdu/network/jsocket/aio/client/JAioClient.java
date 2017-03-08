@@ -15,10 +15,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * @author hanhan.zhang
@@ -83,41 +80,54 @@ public class JAioClient {
                 return;
             }
 
-            // 注册读回调函数
-            ByteBuffer readBuffer = ByteBuffer.allocate(args.getReadBufferSize());
-            JAioFrameBuffer jAioFrameBuffer = new JAioFrameBuffer(asyncSocketChannel, readBuffer);
-            asyncSocketChannel.read(readBuffer, jAioFrameBuffer, new CompletionHandler<Integer, JAioFrameBuffer>() {
-                @Override
-                public void failed(Throwable exc, JAioFrameBuffer attachment) {
-                    try {
-                        attachment.closeChannel();
-                    } catch (IOException e) {
-                        channelHandler.occurException(attachment.getAsyncSocketChannel(), e);
-                    }
-                }
-
-                @Override
-                public void completed(Integer result, JAioFrameBuffer attachment) {
-                    fireReadComplete(asyncSocketChannel, result, jAioFrameBuffer);
-                }
-
-            });
+//            // 注册读回调函数
+//            ByteBuffer readBuffer = ByteBuffer.allocate(args.getReadBufferSize());
+//            JAioFrameBuffer jAioFrameBuffer = new JAioFrameBuffer(asyncSocketChannel, readBuffer);
+//            asyncSocketChannel.read(readBuffer, jAioFrameBuffer, new CompletionHandler<Integer, JAioFrameBuffer>() {
+//                @Override
+//                public void failed(Throwable exc, JAioFrameBuffer attachment) {
+//                    try {
+//                        attachment.closeChannel();
+//                    } catch (IOException e) {
+//                        channelHandler.occurException(attachment.getAsyncSocketChannel(), e);
+//                    }
+//                }
+//
+//                @Override
+//                public void completed(Integer result, JAioFrameBuffer attachment) {
+//                    fireReadComplete(asyncSocketChannel, result, jAioFrameBuffer);
+//                }
+//
+//            });
 
             String msg = "heart beat";
             // 定时向服务器端发送消息
-            scheduledExecutorService.scheduleAtFixedRate(() -> jAioFrameBuffer.write(msg), 1, 1, TimeUnit.SECONDS);
+            scheduledExecutorService.scheduleAtFixedRate(() -> {
+                ByteBuffer buffer = ByteBuffer.allocate(msg.length());
+//                buffer.putInt(msg.length());
+                buffer.put(msg.getBytes());
+                buffer.flip();
+                Future<Integer> future = asyncSocketChannel.write(buffer);
+                try {
+                    LOGGER.info("client write {} bytes", future.get());
+                } catch (Exception e) {
+                    // ignore
+                    e.printStackTrace();
+                }
+            }, 1, 1, TimeUnit.SECONDS);
         }
 
         @Override
         public void fireReadComplete(AsynchronousSocketChannel asyncSocketChannel, int readSize, JAioFrameBuffer jAioFrameBuffer) {
 
             do {
+                jAioFrameBuffer.preRead();
                 // 读取一个数据包
                 byte[] bytes = jAioFrameBuffer.read();
                 if (bytes != null) {
                     LOGGER.info("io thread = {}, receive : {}", Thread.currentThread().getName(), new String(bytes));
+                    jAioFrameBuffer.compactReadBuffer();
                 }
-                jAioFrameBuffer.preRead();
             } while (jAioFrameBuffer.hasReadRemaining());
 
             jAioFrameBuffer.compactReadBuffer();
@@ -142,6 +152,7 @@ public class JAioClient {
     public static void main(String[] args) throws Exception {
         JClientArgs clientArgs = new JClientArgs();
         clientArgs.setIoThreads(5);
+        clientArgs.setReadBufferSize(1024);
         clientArgs.setRemoteAddress(new InetSocketAddress(JAioUtils.getIpV4(), 6712));
 
         //
