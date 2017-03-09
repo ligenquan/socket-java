@@ -1,4 +1,4 @@
-package com.sdu.network.jsocket.aio.client.callback;
+package com.sdu.network.jsocket.aio.callback;
 
 import com.sdu.network.jsocket.aio.utils.JAioUtils;
 import org.slf4j.Logger;

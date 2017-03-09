@@ -1,4 +1,4 @@
-package com.sdu.network.jsocket.aio.server.callback;
+package com.sdu.network.jsocket.aio.callback;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +13,7 @@ import java.nio.channels.CompletionHandler;
  *
  *  1: 负责以递归的方式读取客户端数据
  *
- *  2: 负责对客户端做出响应
+ *  2: 负责对远端做出响应
  *
  * @author hanhan.zhang
  * */

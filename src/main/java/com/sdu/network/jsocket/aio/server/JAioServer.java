@@ -1,6 +1,6 @@
 package com.sdu.network.jsocket.aio.server;
 
-import com.sdu.network.jsocket.aio.server.callback.JAioAcceptHandler;
+import com.sdu.network.jsocket.aio.callback.JAioAcceptHandler;
 import com.sdu.network.jsocket.aio.utils.JAioUtils;
 import lombok.Getter;
 import lombok.Setter;
