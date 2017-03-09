@@ -1,5 +1,7 @@
 package com.sdu.network.jsocket.aio.callback;
 
+import com.sdu.network.jsocket.aio.bean.Message;
+import com.sdu.network.serializer.KryoSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,11 +48,11 @@ public class JAioAcceptHandler implements CompletionHandler<AsynchronousSocketCh
             // 客户端连接信息
             InetSocketAddress remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
             String address = remoteAddress.getHostString() + ":" + remoteAddress.getPort();
-            LOGGER.info("ioThread[{}] accept connect from address {}", Thread.currentThread().getName(), address);
+            LOGGER.info("线程[{}]接受客户端{}连接", Thread.currentThread().getName(), address);
 
             // 注册读事件
             ByteBuffer buffer = ByteBuffer.allocate(readBufferSize);
-            socketChannel.read(buffer, buffer, new JAioReadHandler(socketChannel));
+            socketChannel.read(buffer, buffer, new JAioServerReadHandler(socketChannel, new KryoSerializer(Message.class)));
         } catch (IOException e) {
             LOGGER.error("accept exception", e);
         } finally {

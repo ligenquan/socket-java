@@ -1,7 +1,10 @@
 package com.sdu.network.jsocket.aio.client;
 
+import com.sdu.network.jsocket.aio.bean.Message;
+import com.sdu.network.jsocket.aio.bean.MessageAck;
 import com.sdu.network.jsocket.aio.callback.JAioConnectHandler;
 import com.sdu.network.jsocket.aio.utils.JAioUtils;
+import com.sdu.network.serializer.KryoSerializer;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -33,7 +36,7 @@ public class JAioClient {
         asyncSocketChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
         asyncSocketChannel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
         asyncSocketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);
-        asyncSocketChannel.connect(args.getRemoteAddress(), asyncSocketChannel, new JAioConnectHandler(args.getReadBufferSize()));
+        asyncSocketChannel.connect(args.getRemoteAddress(), asyncSocketChannel, new JAioConnectHandler(args.getReadBufferSize(), new KryoSerializer(Message.class, MessageAck.class)));
 
         group.awaitTermination(1, TimeUnit.MINUTES);
     }

@@ -1,32 +1,35 @@
-package com.sdu.network.netty.codec;
+package com.sdu.network.jsocket.aio.codec;
 
 
 import com.sdu.network.serializer.KryoSerializer;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.MessageToByteEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
+ * Thread safe, Suggest : Single Object
+ *
  * @author hanhan.zhang
  * */
-public class KryoSerializerEncoder extends MessageToByteEncoder<Object> {
+public class JAioKryoSerializerEncoder {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(KryoSerializerEncoder.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(JAioKryoSerializerEncoder.class);
 
     private KryoSerializer serializer;
 
-    public KryoSerializerEncoder(KryoSerializer serializer) {
+    public JAioKryoSerializerEncoder(KryoSerializer serializer) {
         this.serializer = serializer;
     }
 
-    @Override
-    protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
+    public void encode(Object msg, ByteBuffer out) {
         try {
+            out.clear();
             serializer.encode(out, msg);
+            out.flip();
         } catch (IOException e) {
             LOGGER.error("object serialize to bytes exception", e);
         }

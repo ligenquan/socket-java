@@ -1,4 +1,4 @@
-package com.sdu.network.netty.codec.kryo;
+package com.sdu.network.serializer;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -12,6 +12,7 @@ import org.objenesis.strategy.StdInstantiatorStrategy;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * @author hanhan.zhang
@@ -52,6 +53,30 @@ public class KryoSerializer {
     }
 
     public void encode(final ByteBuf out, final Object message) throws IOException {
+        try {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            // 序列化
+            Kryo kryo = poolHolder.get().borrow();
+            Output output = new Output(byteArrayOutputStream);
+            kryo.writeClassAndObject(output, message);
+            output.flush();
+
+            // 资源释放
+            closer.register(byteArrayOutputStream);
+            closer.register(output);
+            poolHolder.get().release(kryo);
+
+            // 输出编码: 数据包头 + 数据包长度
+            byte[] body = byteArrayOutputStream.toByteArray();
+            int dataLength = body.length;
+            out.writeInt(dataLength);
+            out.writeBytes(body);
+        } finally {
+            closer.close();
+        }
+    }
+
+    public void encode(final ByteBuffer buffer, final Object message) throws IOException {
         ByteArrayOutputStream byteArrayOutputStream = null;
         try {
             byteArrayOutputStream = new ByteArrayOutputStream();
@@ -69,8 +94,8 @@ public class KryoSerializer {
             // 输出编码: 数据包头 + 数据包长度
             byte[] body = byteArrayOutputStream.toByteArray();
             int dataLength = body.length;
-            out.writeInt(dataLength);
-            out.writeBytes(body);
+            buffer.putInt(dataLength);
+            buffer.put(body);
         } finally {
             closer.close();
         }

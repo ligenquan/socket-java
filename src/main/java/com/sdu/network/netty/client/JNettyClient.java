@@ -2,7 +2,7 @@ package com.sdu.network.netty.client;
 
 import com.sdu.network.netty.codec.KryoSerializerDecoder;
 import com.sdu.network.netty.codec.KryoSerializerEncoder;
-import com.sdu.network.netty.codec.kryo.KryoSerializer;
+import com.sdu.network.serializer.KryoSerializer;
 import com.sdu.network.netty.handler.JClientChannelHandler;
 import com.sdu.network.netty.msg.JMessage;
 import com.sdu.network.netty.utils.JNettyUtils;

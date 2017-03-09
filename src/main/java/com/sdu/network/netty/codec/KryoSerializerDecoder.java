@@ -1,6 +1,6 @@
 package com.sdu.network.netty.codec;
 
-import com.sdu.network.netty.codec.kryo.KryoSerializer;
+import com.sdu.network.serializer.KryoSerializer;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
