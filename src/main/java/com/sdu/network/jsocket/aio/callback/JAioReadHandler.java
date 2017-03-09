@@ -3,6 +3,7 @@ package com.sdu.network.jsocket.aio.callback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -14,6 +15,12 @@ import java.nio.channels.CompletionHandler;
  *  1: 负责以递归的方式读取客户端数据
  *
  *  2: 负责对远端做出响应
+ *
+ *  Note:
+ *
+ *    1: JAioReadHandler对应一个连接通道且每个通道拥有一个ByteBuffer用于数据读取和发送
+ *
+ *    2: JAioReadHandler完成对Socket粘包/拆包处理
  *
  * @author hanhan.zhang
  * */
@@ -59,5 +66,10 @@ public class JAioReadHandler implements CompletionHandler<Integer, ByteBuffer> {
     @Override
     public void failed(Throwable exc, ByteBuffer attachment) {
 
+    }
+
+
+    private void doReadBuffer(ByteBuffer buffer) {
+        buffer.flip();
     }
 }
