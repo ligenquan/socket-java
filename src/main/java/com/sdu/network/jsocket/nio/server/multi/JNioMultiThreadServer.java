@@ -10,6 +10,7 @@ import com.sdu.network.jsocket.nio.callback.JNioChannelHandler;
 import com.sdu.network.jsocket.nio.callback.impl.JDefaultNioChannelHandler;
 import com.sdu.network.jsocket.utils.JSocketUtils;
 import com.sdu.network.serializer.KryoSerializer;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,22 +47,15 @@ public class JNioMultiThreadServer {
     // 工作线程
     private Set<Thread> workerThreads = new HashSet<>();
 
-    // key = 客户端地址, value = 接收MsgId集合
-    private Map<String, Set<String>> receiveMsg;
-
     private JNioChannelHandler channelHandler;
 
     private int readBufferSize;
-
-    private Map<String, ByteBuffer> readBuffers;
 
     private AtomicInteger threadNum = new AtomicInteger();
 
     public JNioMultiThreadServer(JNioChannelHandler channelHandler, int readBufferSize) {
         this.channelHandler = channelHandler;
-        this.receiveMsg = Maps.newConcurrentMap();
         this.readBufferSize = readBufferSize;
-        this.readBuffers = Maps.newConcurrentMap();
     }
 
     public void serve(String host, int port) throws IOException {
@@ -107,46 +101,31 @@ public class JNioMultiThreadServer {
         socketThread.start();
     }
 
-    private void doRead(SelectionKey key) throws IOException {
+    private void doRead(SelectionKey key, ByteBuffer readBuffer, Set<String> receiveMsg) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
         String clientAddress = JSocketUtils.getClientAddress(sc);
-        ByteBuffer readBuffer = readBuffers.get(clientAddress);
-        if (readBuffer == null) {
-            readBuffer = ByteBuffer.allocate(readBufferSize);
-            readBuffers.put(clientAddress, readBuffer);
-        }
         int readSize = sc.read(readBuffer);
         List<Object> msgList = channelHandler.channelRead(sc, readSize, readBuffer);
 
         if (msgList != null && msgList.size() > 0) {
-
-
-            Set<String> msgIdSet = receiveMsg.get(clientAddress);
-            if (msgIdSet == null) {
-                msgIdSet = Sets.newConcurrentHashSet();
-                receiveMsg.put(clientAddress, msgIdSet);
-            }
-            for (Object object : msgList) {
+            msgList.forEach(object -> {
                 if (object.getClass() == Message.class) {
                     Message msg = (Message) object;
                     LOGGER.info("线程[{}]收到来自客户端{}的消息:{}", Thread.currentThread().getName(), clientAddress, msg.toString());
-                    msgIdSet.add(msg.getMsgId());
+                    receiveMsg.add(msg.getMsgId());
                 }
-            }
+            });
 
             // 客户端数据读取结束, 通道监听事件改为OP_WRITE
             preWrite(key);
         }
     }
 
-    private void doWrite(SelectionKey key) throws IOException {
+    private void doWrite(SelectionKey key, Set<String> receivedMsg) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
-
-        String clientAddress = JSocketUtils.getClientAddress(sc);
-        Set<String> msgIdSet = receiveMsg.get(clientAddress);
         ByteBuffer writeBuffer = ByteBuffer.allocate(1024);
-        if (msgIdSet != null && msgIdSet.size() > 0) {
-            Iterator<String> it = msgIdSet.iterator();
+        if (receivedMsg != null && receivedMsg.size() > 0) {
+            Iterator<String> it = receivedMsg.iterator();
             while (it.hasNext()) {
                 String msgId = it.next();
                 it.remove();
@@ -185,10 +164,16 @@ public class JNioMultiThreadServer {
 
         private Selector selector;
 
-        public JNioSocketThread(SocketChannel sc) throws IOException {
+        private ByteBuffer readBuffer;
+
+        private Set<String> receivedMsg;
+
+        JNioSocketThread(SocketChannel sc) throws IOException {
             super("socket-thread-" + threadNum.incrementAndGet());
             this.sc = sc;
             this.selector = Selector.open();
+            this.readBuffer = ByteBuffer.allocate(readBufferSize);
+            this.receivedMsg = Sets.newConcurrentHashSet();
         }
 
         @Override
@@ -209,9 +194,9 @@ public class JNioMultiThreadServer {
                             // 移除通道事件
                             it.remove();
                             if (key.isReadable()) {
-                                doRead(key);
+                                doRead(key, readBuffer, receivedMsg);
                             } else if (key.isWritable()) {
-                                doWrite(key);
+                                doWrite(key, receivedMsg);
                             }
                         }
                     }

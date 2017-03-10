@@ -5,7 +5,6 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.pool.KryoFactory;
 import com.esotericsoftware.kryo.pool.KryoPool;
-import com.google.common.io.Closer;
 import io.netty.buffer.ByteBuf;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
@@ -21,50 +20,40 @@ public class KryoSerializer {
 
     private Class<?> []registerClazz;
 
-    private ThreadLocal<KryoSerializerPool> poolHolder = new ThreadLocal<KryoSerializerPool>(){
-        @Override
-        protected KryoSerializerPool initialValue() {
-            return new KryoSerializerPool();
-        }
-    };
-
-    private Closer closer = Closer.create();
+    private KryoSerializerPool kryoSerializerPool;
 
     public KryoSerializer(Class<?> ... registerClazz) {
         this.registerClazz = registerClazz;
+        this.kryoSerializerPool = new KryoSerializerPool();
     }
 
     public Object decode(byte[] bytes) throws IOException {
-        ByteArrayInputStream byteArrayInputStream;
+        ByteArrayInputStream byteArrayInputStream = null;
+        Input input = null;
         try {
             byteArrayInputStream = new ByteArrayInputStream(bytes);
-            Kryo kryo = poolHolder.get().borrow();
-            Input in = new Input(byteArrayInputStream);
-            Object result = kryo.readClassAndObject(in);
-
-            // 释放资源
-            closer.register(in);
-            closer.register(byteArrayInputStream);
-            poolHolder.get().release(kryo);
+            Kryo kryo = kryoSerializerPool.borrow();
+            input = new Input(byteArrayInputStream);
+            Object result = kryo.readClassAndObject(input);
+            kryoSerializerPool.release(kryo);
             return result;
         } finally {
-            closer.close();
+            close(byteArrayInputStream, input);
         }
     }
 
     public void encode(final ByteBuf out, final Object message) throws IOException {
+        ByteArrayOutputStream byteArrayOutputStream = null;
+        Output output = null;
         try {
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            byteArrayOutputStream = new ByteArrayOutputStream();
             // 序列化
-            Kryo kryo = poolHolder.get().borrow();
-            Output output = new Output(byteArrayOutputStream);
+            Kryo kryo = kryoSerializerPool.borrow();
+            output = new Output(byteArrayOutputStream);
             kryo.writeClassAndObject(output, message);
             output.flush();
 
-            // 资源释放
-            closer.register(byteArrayOutputStream);
-            closer.register(output);
-            poolHolder.get().release(kryo);
+            kryoSerializerPool.release(kryo);
 
             // 输出编码: 数据包头 + 数据包长度
             byte[] body = byteArrayOutputStream.toByteArray();
@@ -72,24 +61,22 @@ public class KryoSerializer {
             out.writeInt(dataLength);
             out.writeBytes(body);
         } finally {
-            closer.close();
+            close(byteArrayOutputStream, output);
         }
     }
 
     public void encode(final ByteBuffer buffer, final Object message) throws IOException {
         ByteArrayOutputStream byteArrayOutputStream = null;
+        Output output = null;
         try {
             byteArrayOutputStream = new ByteArrayOutputStream();
             // 序列化
-            Kryo kryo = poolHolder.get().borrow();
-            Output output = new Output(byteArrayOutputStream);
+            Kryo kryo = kryoSerializerPool.borrow();
+            output = new Output(byteArrayOutputStream);
             kryo.writeClassAndObject(output, message);
             output.flush();
 
-            // 资源释放
-            closer.register(byteArrayOutputStream);
-            closer.register(output);
-            poolHolder.get().release(kryo);
+            kryoSerializerPool.release(kryo);
 
             // 输出编码: 数据包头 + 数据包长度
             byte[] body = byteArrayOutputStream.toByteArray();
@@ -97,7 +84,29 @@ public class KryoSerializer {
             buffer.putInt(dataLength);
             buffer.put(body);
         } finally {
-            closer.close();
+            close(byteArrayOutputStream, output);
+        }
+    }
+
+    private void close(ByteArrayInputStream inputStream, Input input) {
+        try {
+            if (inputStream != null) {
+                inputStream.close();
+            }
+            if (input != null) {
+                input.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void close(ByteArrayOutputStream outputStream, Output output) {
+        try {
+            outputStream.close();
+            output.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
