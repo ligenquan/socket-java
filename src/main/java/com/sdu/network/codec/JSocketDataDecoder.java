@@ -1,12 +1,10 @@
-package com.sdu.network.jsocket.aio.codec;
+package com.sdu.network.codec;
 
 import com.google.common.collect.Lists;
 import com.sdu.network.serializer.KryoSerializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -14,19 +12,17 @@ import java.util.List;
  *
  * @author hanhan.zhang
  * */
-public class JAioKryoSerializerDecoder {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(JAioKryoSerializerDecoder.class);
+public class JSocketDataDecoder {
 
     private static final int SOCKET_HEAD_LENGTH = 4;
 
     private KryoSerializer serializer;
 
-    public JAioKryoSerializerDecoder(KryoSerializer serializer) {
+    public JSocketDataDecoder(KryoSerializer serializer) {
         this.serializer = serializer;
     }
 
-    public List<Object> decode(ByteBuffer buffer) throws Exception {
+    public List<Object> decode(ByteBuffer buffer) throws IOException {
         buffer.flip();
 
         List<Object> msgList = Lists.newLinkedList();

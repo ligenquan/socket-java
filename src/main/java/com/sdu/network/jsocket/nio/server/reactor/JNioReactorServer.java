@@ -35,7 +35,7 @@ public class JNioReactorServer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JNioReactorServer.class);
 
-    private AtomicBoolean _stopped = new AtomicBoolean(true);
+    private AtomicBoolean stopped = new AtomicBoolean(true);
 
     private JAcceptThread acceptThread;
 
@@ -98,7 +98,7 @@ public class JNioReactorServer {
         @Override
         public void run() {
             try {
-                while (!_stopped.get()) {
+                while (!stopped.get()) {
                     acceptSelector.select();
 
                     Iterator<SelectionKey> it = acceptSelector.selectedKeys().iterator();
@@ -175,7 +175,7 @@ public class JNioReactorServer {
         @Override
         public void run() {
             try {
-                while (!_stopped.get()) {
+                while (!stopped.get()) {
                     select();
                     processAcceptConnection();
                 }
@@ -189,7 +189,7 @@ public class JNioReactorServer {
             try {
                 selector.select();
                 Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-                while (!_stopped.get() && iterator.hasNext()) {
+                while (!stopped.get() && iterator.hasNext()) {
                     SelectionKey key = iterator.next();
                     iterator.remove();
 
@@ -211,7 +211,7 @@ public class JNioReactorServer {
         }
 
         private void processAcceptConnection() throws IOException {
-            while (!_stopped.get()) {
+            while (!stopped.get()) {
                 SocketChannel sc = acceptQueue.poll();
                 if (sc == null) {
                     break;
@@ -227,7 +227,7 @@ public class JNioReactorServer {
         }
 
         public void doAddAccept(SocketChannel sc) throws IOException {
-            if (!_stopped.get()) {
+            if (!stopped.get()) {
                 acceptQueue.add(sc);
                 // 唤醒Selector[由于Selector.select()阻塞]
                 selector.wakeup();
@@ -289,7 +289,7 @@ public class JNioReactorServer {
     }
 
     private void startThread() {
-        _stopped.set(false);
+        stopped.set(false);
         selectorThreads.forEach(JSelectorThread::start);
         acceptThread.start();
     }

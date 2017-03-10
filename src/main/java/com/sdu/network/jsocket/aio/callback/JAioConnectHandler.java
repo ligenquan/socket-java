@@ -1,9 +1,8 @@
 package com.sdu.network.jsocket.aio.callback;
 
 import com.sdu.network.jsocket.aio.bean.Message;
-import com.sdu.network.jsocket.aio.bean.MessageAck;
-import com.sdu.network.jsocket.aio.codec.JAioKryoSerializerEncoder;
-import com.sdu.network.jsocket.aio.utils.JAioUtils;
+import com.sdu.network.codec.JSocketDataEncoder;
+import com.sdu.network.jsocket.utils.JSocketUtils;
 import com.sdu.network.serializer.KryoSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,13 +34,13 @@ public class JAioConnectHandler implements CompletionHandler<Void, AsynchronousS
     private ScheduledExecutorService scheduledExecutorService;
 
     private KryoSerializer serializer;
-    private JAioKryoSerializerEncoder encoder;
+    private JSocketDataEncoder encoder;
 
     public JAioConnectHandler(int readBufferSize, KryoSerializer serializer) {
         this.readBufferSize = readBufferSize;
         this.serializer = serializer;
-        encoder = new JAioKryoSerializerEncoder(serializer);
-        ThreadFactory threadFactory = JAioUtils.buildThreadFactory("schedule-thread-%d", false);
+        encoder = new JSocketDataEncoder(serializer);
+        ThreadFactory threadFactory = JSocketUtils.buildThreadFactory("schedule-thread-%d", false);
         scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(threadFactory);
     }
 

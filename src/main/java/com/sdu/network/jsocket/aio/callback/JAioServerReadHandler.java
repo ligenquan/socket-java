@@ -2,8 +2,8 @@ package com.sdu.network.jsocket.aio.callback;
 
 import com.sdu.network.jsocket.aio.bean.Message;
 import com.sdu.network.jsocket.aio.bean.MessageAck;
-import com.sdu.network.jsocket.aio.codec.JAioKryoSerializerDecoder;
-import com.sdu.network.jsocket.aio.codec.JAioKryoSerializerEncoder;
+import com.sdu.network.codec.JSocketDataDecoder;
+import com.sdu.network.codec.JSocketDataEncoder;
 import com.sdu.network.serializer.KryoSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,16 +35,16 @@ public class JAioServerReadHandler implements CompletionHandler<Integer, ByteBuf
 
     private AsynchronousSocketChannel socketChannel;
 
-    private JAioKryoSerializerDecoder decoder;
+    private JSocketDataDecoder decoder;
 
-    private JAioKryoSerializerEncoder encoder;
+    private JSocketDataEncoder encoder;
 
     private ByteBuffer writeBuffer;
 
     public JAioServerReadHandler(AsynchronousSocketChannel socketChannel, KryoSerializer serializer) {
         this.socketChannel = socketChannel;
-        decoder = new JAioKryoSerializerDecoder(serializer);
-        encoder = new JAioKryoSerializerEncoder(serializer);
+        decoder = new JSocketDataDecoder(serializer);
+        encoder = new JSocketDataEncoder(serializer);
         writeBuffer = ByteBuffer.allocate(1024);
     }
 

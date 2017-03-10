@@ -3,7 +3,7 @@ package com.sdu.network.jsocket.aio.client;
 import com.sdu.network.jsocket.aio.bean.Message;
 import com.sdu.network.jsocket.aio.bean.MessageAck;
 import com.sdu.network.jsocket.aio.callback.JAioConnectHandler;
-import com.sdu.network.jsocket.aio.utils.JAioUtils;
+import com.sdu.network.jsocket.utils.JSocketUtils;
 import com.sdu.network.serializer.KryoSerializer;
 import lombok.Getter;
 import lombok.Setter;
@@ -30,7 +30,7 @@ public class JAioClient {
     }
 
     public void start() throws IOException, InterruptedException {
-        ThreadFactory threadFactory = JAioUtils.buildThreadFactory("io-event-thread-%d", false);
+        ThreadFactory threadFactory = JSocketUtils.buildThreadFactory("io-event-thread-%d", false);
         AsynchronousChannelGroup group = AsynchronousChannelGroup.withFixedThreadPool(args.getIoThreads(), threadFactory);
         asyncSocketChannel = AsynchronousSocketChannel.open(group);
         // Note:
@@ -60,7 +60,7 @@ public class JAioClient {
         JClientArgs clientArgs = new JClientArgs();
         clientArgs.setIoThreads(5);
         clientArgs.setReadBufferSize(1024);
-        clientArgs.setRemoteAddress(new InetSocketAddress(JAioUtils.getIpV4(), 6712));
+        clientArgs.setRemoteAddress(new InetSocketAddress(JSocketUtils.getIpV4(), 6712));
 
         //
         JAioClient client = new JAioClient(clientArgs);
