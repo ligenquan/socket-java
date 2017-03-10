@@ -1,6 +1,10 @@
 package com.sdu.network.jsocket.nio.server.reactor;
 
+import com.sdu.network.jsocket.aio.bean.Message;
+import com.sdu.network.jsocket.aio.bean.MessageAck;
 import com.sdu.network.jsocket.nio.buf.JFrameBuffer;
+import com.sdu.network.jsocket.utils.JSocketUtils;
+import com.sdu.network.serializer.KryoSerializer;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -37,14 +41,16 @@ public class JNioReactorServer {
 
     private AtomicBoolean stopped = new AtomicBoolean(true);
 
-    private JAcceptThread acceptThread;
+    private JNioAcceptThread acceptThread;
 
-    private Set<JSelectorThread> selectorThreads = new HashSet<>();
+    private Set<JNioSelectorThread> selectorThreads = new HashSet<>();
 
     // 业务线程池
     private ExecutorService workExecutor;
 
     private long maxReadBufferBytes;
+
+    private KryoSerializer serializer;
 
     @Setter
     @Getter
@@ -66,12 +72,13 @@ public class JNioReactorServer {
 
         private int maxWorkerThread;
 
+        private KryoSerializer serializer;
     }
 
     /**
      * 连接请求处理线程
      * */
-    private class JAcceptThread extends Thread {
+    private class JNioAcceptThread extends Thread {
         // 绑定地址
         private String host;
         // 绑定端口
@@ -81,7 +88,7 @@ public class JNioReactorServer {
 
         private JSelectorThreadLoadBalancer selectorThreadChoose;
 
-        public JAcceptThread(JSelectorThreadLoadBalancer loadBalancer, String host, int port) throws IOException {
+        JNioAcceptThread(JSelectorThreadLoadBalancer loadBalancer, String host, int port) throws IOException {
             this.host = host;
             this.port = port;
             selectorThreadChoose = loadBalancer;
@@ -123,11 +130,11 @@ public class JNioReactorServer {
                     }
                 }
             } catch (Throwable e) {
-                LOGGER.error("JAcceptThread exit dut to uncaught error", e);
+                LOGGER.error("JNioAcceptThread exit dut to uncaught error", e);
             }
         }
 
-        private void doAddAccept(SocketChannel sc, JSelectorThread selectorThread) throws IOException {
+        private void doAddAccept(SocketChannel sc, JNioSelectorThread selectorThread) throws IOException {
             selectorThread.doAddAccept(sc);
         }
     }
@@ -137,16 +144,16 @@ public class JNioReactorServer {
      * */
     private class JSelectorThreadLoadBalancer {
 
-        private Set<JSelectorThread> selectorThreads;
+        private Set<JNioSelectorThread> selectorThreads;
 
-        private Iterator<JSelectorThread> iterator;
+        private Iterator<JNioSelectorThread> iterator;
 
-        public JSelectorThreadLoadBalancer(Set<JSelectorThread> selectorThreads) {
+        public JSelectorThreadLoadBalancer(Set<JNioSelectorThread> selectorThreads) {
             this.selectorThreads = selectorThreads;
             iterator = selectorThreads.iterator();
         }
 
-        public JSelectorThread nextSelectorThread() {
+        public JNioSelectorThread nextSelectorThread() {
             if (!iterator.hasNext()) {
                 iterator = selectorThreads.iterator();
             }
@@ -157,13 +164,13 @@ public class JNioReactorServer {
     /**
      * 负责客户端连接
      * */
-    private class JSelectorThread extends Thread {
+    private class JNioSelectorThread extends Thread {
 
         private Selector selector;
 
         private BlockingQueue<SocketChannel> acceptQueue;
 
-        public JSelectorThread(int size) throws IOException {
+        public JNioSelectorThread(int size) throws IOException {
             selector = Selector.open();
             if (size <= 0) {
                 acceptQueue = new LinkedBlockingQueue<>();
@@ -180,7 +187,7 @@ public class JNioReactorServer {
                     processAcceptConnection();
                 }
             } catch (Throwable e) {
-                LOGGER.error("JSelectorThread exit dut to uncaught error", e);
+                LOGGER.error("JNioSelectorThread exit dut to uncaught error", e);
             }
 
         }
@@ -221,7 +228,7 @@ public class JNioReactorServer {
                 /**
                  * 每个客户端对应一个{@link QFrameBuffer}
                  * */
-                JFrameBuffer buffer = new JFrameBuffer(sc, sk, maxReadBufferBytes);
+                JFrameBuffer buffer = new JFrameBuffer(sc, sk, maxReadBufferBytes, serializer);
                 sk.attach(buffer);
             }
         }
@@ -282,15 +289,17 @@ public class JNioReactorServer {
             maxReadBufferBytes = args.maxReadBufferBytes;
         }
         for (int i = 0; i < args.getSelectorThreadNumber(); ++i) {
-            selectorThreads.add(new JSelectorThread(args.getQueueSizePerSelectorThread()));
+            selectorThreads.add(new JNioSelectorThread(args.getQueueSizePerSelectorThread()));
         }
-        acceptThread = new JAcceptThread(new JSelectorThreadLoadBalancer(selectorThreads), args.getHost(), args.getPort());
-        workExecutor = new ThreadPoolExecutor(args.getMinWorkerThread(), args.getMaxWorkerThread(), 5, TimeUnit.MINUTES, new SynchronousQueue<>());
+        acceptThread = new JNioAcceptThread(new JSelectorThreadLoadBalancer(selectorThreads), args.getHost(), args.getPort());
+        workExecutor = new ThreadPoolExecutor(args.getMinWorkerThread(), args.getMaxWorkerThread(), 5, TimeUnit.MINUTES,
+                                              new SynchronousQueue<>(), JSocketUtils.buildThreadFactory("worker-thread-%d", false));
+        serializer = args.getSerializer();
     }
 
     private void startThread() {
         stopped.set(false);
-        selectorThreads.forEach(JSelectorThread::start);
+        selectorThreads.forEach(JNioSelectorThread::start);
         acceptThread.start();
     }
 
@@ -305,7 +314,7 @@ public class JNioReactorServer {
 
     private void joinThreads() throws InterruptedException {
         acceptThread.join();
-        for (JSelectorThread selectorThread : selectorThreads) {
+        for (JNioSelectorThread selectorThread : selectorThreads) {
             selectorThread.join();
         }
     }
@@ -324,7 +333,9 @@ public class JNioReactorServer {
 
 
     public static void main(String[] args) throws Exception {
+        KryoSerializer serializer = new KryoSerializer(Message.class, MessageAck.class);
         JServerArgs serverArgs = new JServerArgs();
+        serverArgs.setSerializer(serializer);
         serverArgs.setSelectorThreadNumber(4);
         serverArgs.setQueueSizePerSelectorThread(10);
         serverArgs.setMinWorkerThread(5);

@@ -1,5 +1,8 @@
 package com.sdu.network.jsocket.nio.buf;
 
+import com.sdu.network.jsocket.aio.bean.Message;
+import com.sdu.network.jsocket.aio.bean.MessageAck;
+import com.sdu.network.serializer.KryoSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -7,6 +10,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.List;
 
 /**
  * {@link JFrameBuffer}负责Socket通信数据读写
@@ -32,21 +36,16 @@ public class JFrameBuffer {
     // SocketChannel注册的SelectorKey
     private SelectionKey _selectionKey;
 
-    // 服务端数据响应
-    private JMemoryInputBuffer _outputBuffer;
+    private KryoSerializer serializer;
 
-    // 客户端发送的数据
-    private JMemoryInputBuffer _inputBuffer;
-
-    public JFrameBuffer(SocketChannel _channel, SelectionKey _key, long maxFrameSize) {
+    public JFrameBuffer(SocketChannel _channel, SelectionKey _key, long maxFrameSize, KryoSerializer serializer) {
         this.MAX_FRAME_SIZE = maxFrameSize;
         this._channel = _channel;
         this._selectionKey = _key;
 
         // QFrameBuffer初始状态读取Socket数据包包头, 故Buffer的容量设置为4个字节
         this._buffer = ByteBuffer.allocate(4);
-        this._inputBuffer = new JMemoryInputBuffer();
-        this._outputBuffer = new JMemoryInputBuffer();
+        this.serializer = serializer;
     }
 
     public void cleanupSelectionKey(SelectionKey key) {
@@ -189,18 +188,12 @@ public class JFrameBuffer {
     /**
      * 服务端完成业务逻辑并将结果返回到客户端
      * */
-    private void readyResponse() {
-        if (_outputBuffer.getBytesRemainingInBuffer() == 0) {
-            // 服务端无数据响应, 则直接更改FrameBuffer状态为AWAITING_REGISTER_READ
-            // Note:
-            //   此处Buffer设置null, 在changeSelectInterests中将SelectionKey注册OP_READ事件并对Buffer初始化
-            _state = JFrameBufferState.AWAITING_REGISTER_READ;
-            _buffer = null;
-        } else {
-            // 服务端响应, 则更改FrameBuffer状态AWAITING_REGISTER_WRITE
-            _state = JFrameBufferState.AWAITING_REGISTER_WRITE;
-            _buffer = ByteBuffer.wrap(_outputBuffer.getBuffer(), _outputBuffer.getBufferPosition(), _outputBuffer.getBufferLength());
-        }
+    private void readyResponse(String msgId) throws IOException {
+        // 服务端响应, 则更改FrameBuffer状态AWAITING_REGISTER_WRITE
+        _state = JFrameBufferState.AWAITING_REGISTER_WRITE;
+        _buffer = ByteBuffer.allocate(1024);
+        serializer.encode(_buffer, new MessageAck(msgId));
+        _buffer.flip();
         // 更改SelectionKey状态
         changeSelectInterests();
     }
@@ -209,11 +202,13 @@ public class JFrameBuffer {
     public void invoke() {
         try {
             // 处理业务逻辑
-            _inputBuffer.reset(_buffer.array());
-            LOGGER.info("server receive : {}", new String(_inputBuffer.getBuffer()));
-            // 模拟输出数据
-            _outputBuffer.reset("OK".getBytes());
-            readyResponse();
+            Object obj = serializer.decode(_buffer.array());
+            if (obj.getClass() == Message.class) {
+                Message msg = (Message) obj;
+                LOGGER.info("线程[{}]收到客户端消息: {}", Thread.currentThread().getName(), msg.toString());
+                // 模拟输出数据
+                readyResponse(msg.getMsgId());
+            }
             return;
         } catch (Exception e) {
             LOGGER.warn("Exception while invoking!", e);
