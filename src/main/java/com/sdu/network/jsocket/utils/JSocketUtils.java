@@ -25,6 +25,10 @@ public class JSocketUtils {
 
     public static String getClientAddress(SocketChannel socketChannel) throws IOException {
         InetSocketAddress socketAddress = ((InetSocketAddress)socketChannel.getRemoteAddress());
+        return getClientAddress(socketAddress);
+    }
+
+    public static String getClientAddress(InetSocketAddress socketAddress) {
         return socketAddress.getHostString() + ":" + socketAddress.getPort();
     }
 }

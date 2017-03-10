@@ -1,10 +1,12 @@
 package com.sdu.network.netty.server;
 
+import com.sdu.network.bean.HeatBeat;
+import com.sdu.network.bean.Message;
+import com.sdu.network.bean.MessageAck;
 import com.sdu.network.netty.codec.KryoSerializerDecoder;
 import com.sdu.network.netty.codec.KryoSerializerEncoder;
 import com.sdu.network.serializer.KryoSerializer;
 import com.sdu.network.netty.handler.JServerChannelHandler;
-import com.sdu.network.netty.msg.JMessage;
 import com.sdu.network.netty.utils.JNettyUtils;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -42,7 +44,7 @@ public class JNettyServer {
      *     Channel传输数据处理器
      *
      * */
-    private ChannelFuture[] _channelFutures;
+    private ChannelFuture[] channelFutures;
 
     /**
      * _boosGroup负责监听客户端的连接请求:
@@ -54,14 +56,14 @@ public class JNettyServer {
      *
      * Note: 若是监听一个端口, 则_boosGroup的线程设置为1, 若是监听n个端口则线程数设置为n
      * */
-    private EventLoopGroup _bossGroup;
+    private EventLoopGroup bossGroup;
 
     /**
      * _workerGroup负责与客户端进行数据通信:
      *  1: {@link ServerBootstrap.ServerBootstrapAcceptor#channelRead(ChannelHandlerContext, Object)}
      *     完成SocketChannel事件绑定
      * */
-    private EventLoopGroup _workerGroup;
+    private EventLoopGroup workerGroup;
 
     /**
      * @param backlog : Socket连接队列长度
@@ -71,13 +73,13 @@ public class JNettyServer {
     public boolean start(int backlog, int workThreadNum, boolean ePoll, int ... ports) {
         try {
             int bossThreadNum = ports.length;
-            _bossGroup = JNettyUtils.createEventLoopGroup(ePoll, bossThreadNum, "netty-server-boss-thread-%d");
+            bossGroup = JNettyUtils.createEventLoopGroup(ePoll, bossThreadNum, "netty-server-boss-thread-%d");
 
-            _workerGroup = JNettyUtils.createEventLoopGroup(ePoll, workThreadNum, "netty-server-worker-thread-%d");
+            workerGroup = JNettyUtils.createEventLoopGroup(ePoll, workThreadNum, "netty-server-worker-thread-%d");
 
             // ServerBootstrap是Server启动辅助类
             ServerBootstrap bootstrap = new ServerBootstrap();
-            bootstrap.group(_bossGroup, _workerGroup)
+            bootstrap.group(bossGroup, workerGroup)
                      .channel(JNettyUtils.getServerChannelClass(ePoll));
 
             // 设置ServerSocket的连接队列
@@ -105,19 +107,19 @@ public class JNettyServer {
                     //  客户端与服务端TCP粘包/拆包处理需一致
 //                    p.addLast(new StringEncoder());
 //                    p.addLast(new StringDecoder());
-                    KryoSerializer serializer = new KryoSerializer(JMessage.class);
+                    KryoSerializer serializer = new KryoSerializer(Message.class, MessageAck.class, HeatBeat.class);
                     p.addLast(new KryoSerializerEncoder(serializer));
                     p.addLast(new KryoSerializerDecoder(serializer));
                     p.addLast(new JServerChannelHandler());
                 }
             });
 
-            _channelFutures = new ChannelFuture[ports.length];
+            channelFutures = new ChannelFuture[ports.length];
             String ip = JNettyUtils.getIpV4();
             for (int i = 0; i < ports.length; ++i) {
                 ChannelFuture channelFuture = bootstrap.bind(new InetSocketAddress(ip, ports[i]));
                 channelFuture.syncUninterruptibly();
-                _channelFutures[i] = channelFuture;
+                channelFutures[i] = channelFuture;
                 int port = ((InetSocketAddress) channelFuture.channel().localAddress()).getPort();
                 LOGGER.info("netty server start to listen {} port .", port);
             }
@@ -128,22 +130,22 @@ public class JNettyServer {
     }
 
     public void stop() {
-        if (_channelFutures != null) {
-            for (ChannelFuture future : _channelFutures) {
+        if (channelFutures != null) {
+            for (ChannelFuture future : channelFutures) {
                 if (future != null) {
                     future.channel().closeFuture().awaitUninterruptibly(10, TimeUnit.SECONDS);
                 }
             }
-            _channelFutures = null;
+            channelFutures = null;
         }
-        if (_bossGroup != null) {
-            _bossGroup.shutdownGracefully(10, 10, TimeUnit.SECONDS);
-            _bossGroup = null;
+        if (bossGroup != null) {
+            bossGroup.shutdownGracefully(10, 10, TimeUnit.SECONDS);
+            bossGroup = null;
         }
 
-        if (_workerGroup != null) {
-            _workerGroup.shutdownGracefully(10, 10, TimeUnit.SECONDS);
-            _workerGroup = null;
+        if (workerGroup != null) {
+            workerGroup.shutdownGracefully(10, 10, TimeUnit.SECONDS);
+            workerGroup = null;
         }
     }
 

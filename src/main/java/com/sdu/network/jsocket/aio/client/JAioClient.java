@@ -1,7 +1,7 @@
 package com.sdu.network.jsocket.aio.client;
 
-import com.sdu.network.jsocket.aio.bean.Message;
-import com.sdu.network.jsocket.aio.bean.MessageAck;
+import com.sdu.network.bean.Message;
+import com.sdu.network.bean.MessageAck;
 import com.sdu.network.jsocket.aio.callback.JAioConnectHandler;
 import com.sdu.network.jsocket.utils.JSocketUtils;
 import com.sdu.network.serializer.KryoSerializer;

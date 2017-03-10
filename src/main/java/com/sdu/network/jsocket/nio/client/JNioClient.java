@@ -3,8 +3,8 @@ package com.sdu.network.jsocket.nio.client;
 
 import com.sdu.network.codec.JSocketDataDecoder;
 import com.sdu.network.codec.JSocketDataEncoder;
-import com.sdu.network.jsocket.aio.bean.Message;
-import com.sdu.network.jsocket.aio.bean.MessageAck;
+import com.sdu.network.bean.Message;
+import com.sdu.network.bean.MessageAck;
 import com.sdu.network.jsocket.nio.callback.JNioChannelHandler;
 import com.sdu.network.jsocket.nio.callback.impl.JDefaultNioChannelHandler;
 import com.sdu.network.jsocket.utils.JSocketUtils;

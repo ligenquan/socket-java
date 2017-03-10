@@ -1,4 +1,4 @@
-package com.sdu.network.jsocket.aio.bean;
+package com.sdu.network.bean;
 
 import lombok.*;
 
@@ -10,10 +10,8 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @ToString
-public class Message {
+public class MessageAck {
 
     private String msgId;
-
-    private String createTime;
 
 }

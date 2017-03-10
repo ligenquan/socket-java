@@ -1,7 +1,10 @@
 package com.sdu.network.netty.handler;
 
 import com.google.common.collect.Maps;
-import com.sdu.network.netty.msg.JMessage;
+import com.sdu.network.bean.HeatBeat;
+import com.sdu.network.bean.Message;
+import com.sdu.network.bean.MessageAck;
+import com.sdu.network.jsocket.utils.JSocketUtils;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.IdleState;
@@ -10,8 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,11 +36,15 @@ public class JServerChannelHandler extends ChannelInboundHandlerAdapter{
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (msg instanceof JMessage) {
-            JMessage message = (JMessage) msg;
+        if (msg instanceof Message) {
+            Message message = (Message) msg;
             InetSocketAddress remote = (InetSocketAddress) ctx.channel().remoteAddress();
-            LOGGER.info("receive {} from {} .", msg, remote.getHostString());
-            ctx.writeAndFlush("process msg = " + message.getMsgId() + " success at " + getCurrentTime());
+            LOGGER.info("接收到客户端{}的消息{}", JSocketUtils.getClientAddress(remote), message.toString());
+            // 响应客户端
+            ctx.writeAndFlush(new MessageAck(message.getMsgId()));
+        } else if (msg instanceof HeatBeat) {
+            HeatBeat heatBeat = (HeatBeat) msg;
+            LOGGER.info("接收到客户端{}在{}发送的心跳", heatBeat.getSenderAddress(), heatBeat.getSenderAddress());
         }
     }
 
@@ -75,9 +80,5 @@ public class JServerChannelHandler extends ChannelInboundHandlerAdapter{
         } else {
             super.userEventTriggered(ctx, evt);
         }
-    }
-
-    private String getCurrentTime() {
-        return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
     }
 }

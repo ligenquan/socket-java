@@ -1,10 +1,12 @@
 package com.sdu.network.netty.client;
 
+import com.sdu.network.bean.HeatBeat;
+import com.sdu.network.bean.Message;
+import com.sdu.network.bean.MessageAck;
 import com.sdu.network.netty.codec.KryoSerializerDecoder;
 import com.sdu.network.netty.codec.KryoSerializerEncoder;
 import com.sdu.network.serializer.KryoSerializer;
 import com.sdu.network.netty.handler.JClientChannelHandler;
-import com.sdu.network.netty.msg.JMessage;
 import com.sdu.network.netty.utils.JNettyUtils;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
@@ -29,17 +31,17 @@ public class JNettyClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JNettyClient.class);
 
-    private EventLoopGroup _workerGroup;
+    private EventLoopGroup workerGroup;
 
-    private ChannelFuture _channelFuture;
+    private ChannelFuture channelFuture;
 
     public void start(int workerThreadNum, boolean ePoll, String host, int port) {
-        _workerGroup = JNettyUtils.createEventLoopGroup(ePoll, workerThreadNum, "netty-client-thread-%d");
+        workerGroup = JNettyUtils.createEventLoopGroup(ePoll, workerThreadNum, "netty-client-thread-%d");
         // Bootstrap是Client启动辅助类
         Bootstrap bootstrap = new Bootstrap();
 
         // 设置工作线程
-        bootstrap.group(_workerGroup);
+        bootstrap.group(workerGroup);
         // 设置SocketChannel
         bootstrap.channel(JNettyUtils.getClientChannelClass(ePoll));
         // 设置Socket选项
@@ -57,7 +59,7 @@ public class JNettyClient {
                 p.addLast(new IdleStateHandler(0, 4, 0, TimeUnit.SECONDS));
 //                p.addLast(new StringEncoder());
 //                p.addLast(new StringDecoder());
-                KryoSerializer serializer = new KryoSerializer(JMessage.class);
+                KryoSerializer serializer = new KryoSerializer(Message.class, MessageAck.class, HeatBeat.class);
                 p.addLast(new KryoSerializerEncoder(serializer));
                 p.addLast(new KryoSerializerDecoder(serializer));
                 p.addLast(new JClientChannelHandler());
@@ -65,26 +67,26 @@ public class JNettyClient {
         });
 
         // 连接Server
-        _channelFuture = bootstrap.connect(new InetSocketAddress(host, port));
-        _channelFuture.addListener((Future<? super Void> future) -> {
+        channelFuture = bootstrap.connect(new InetSocketAddress(host, port));
+        channelFuture.addListener((Future<? super Void> future) -> {
             if (future.isSuccess()) {
                 LOGGER.info("connect success !");
             } else {
                 LOGGER.error("connect failure !");
             }
         });
-        _channelFuture.syncUninterruptibly();
+        channelFuture.syncUninterruptibly();
 
     }
 
     public void stop() {
-        if (_channelFuture != null) {
-            _channelFuture.channel().closeFuture().awaitUninterruptibly(10, TimeUnit.SECONDS);
-            _channelFuture = null;
+        if (channelFuture != null) {
+            channelFuture.channel().closeFuture().awaitUninterruptibly(10, TimeUnit.SECONDS);
+            channelFuture = null;
         }
-        if (_workerGroup != null) {
-            _workerGroup.shutdownGracefully(10, 10, TimeUnit.SECONDS);
-            _workerGroup = null;
+        if (workerGroup != null) {
+            workerGroup.shutdownGracefully(10, 10, TimeUnit.SECONDS);
+            workerGroup = null;
         }
     }
 

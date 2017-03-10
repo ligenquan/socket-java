@@ -1,7 +1,7 @@
 package com.sdu.network.jsocket.nio.server.reactor;
 
-import com.sdu.network.jsocket.aio.bean.Message;
-import com.sdu.network.jsocket.aio.bean.MessageAck;
+import com.sdu.network.bean.Message;
+import com.sdu.network.bean.MessageAck;
 import com.sdu.network.jsocket.nio.buf.JFrameBuffer;
 import com.sdu.network.jsocket.utils.JSocketUtils;
 import com.sdu.network.serializer.KryoSerializer;
@@ -226,7 +226,7 @@ public class JNioReactorServer {
                 sc.configureBlocking(false);
                 SelectionKey sk = sc.register(selector, SelectionKey.OP_READ);
                 /**
-                 * 每个客户端对应一个{@link QFrameBuffer}
+                 * 每个客户端对应一个{@link JFrameBuffer}
                  * */
                 JFrameBuffer buffer = new JFrameBuffer(sc, sk, maxReadBufferBytes, serializer);
                 sk.attach(buffer);

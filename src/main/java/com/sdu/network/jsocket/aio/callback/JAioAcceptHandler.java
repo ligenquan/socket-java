@@ -1,6 +1,6 @@
 package com.sdu.network.jsocket.aio.callback;
 
-import com.sdu.network.jsocket.aio.bean.Message;
+import com.sdu.network.bean.Message;
 import com.sdu.network.serializer.KryoSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
