@@ -33,6 +33,9 @@ public class JAioClient {
         ThreadFactory threadFactory = JAioUtils.buildThreadFactory("io-event-thread-%d", false);
         AsynchronousChannelGroup group = AsynchronousChannelGroup.withFixedThreadPool(args.getIoThreads(), threadFactory);
         asyncSocketChannel = AsynchronousSocketChannel.open(group);
+        // Note:
+        //  AsynchronousSocketChannel需在Connect前设置SO_RCVBUF/SO_SNDBUF
+        //  原因: TCP在三次牵手中需要告知Server的自己的发送窗口
         asyncSocketChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
         asyncSocketChannel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
         asyncSocketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);

@@ -31,7 +31,12 @@ public class JAioServer {
         ThreadFactory threadFactory = JAioUtils.buildThreadFactory("aio-io-event-thread-%d", false);
         AsynchronousChannelGroup asyncChannelGroup = AsynchronousChannelGroup.withFixedThreadPool(args.getIoThreads(), threadFactory);
         asyncServerChannel = AsynchronousServerSocketChannel.open(asyncChannelGroup);
+        // Note:
+        //  AsynchronousServerSocketChannel在监听端口前设置:SO_RCVBUF/SO_SNDBUF
+        //  原因: 在监听端口生成的AsynchronousSocketChannel继承AsynchronousServerSocketChannel的设置
         asyncServerChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+        asyncServerChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
+        asyncServerChannel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
         asyncServerChannel.bind(args.getBindAddress(), args.getBacklog());
         asyncServerChannel.accept(asyncServerChannel, new JAioAcceptHandler(args.getReadBufferSize()));
 
