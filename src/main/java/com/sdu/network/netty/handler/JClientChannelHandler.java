@@ -1,7 +1,6 @@
 package com.sdu.network.netty.handler;
 
 import com.sdu.network.bean.HeatBeat;
-import com.sdu.network.bean.Message;
 import com.sdu.network.bean.MessageAck;
 import com.sdu.network.jsocket.utils.JSocketUtils;
 import io.netty.channel.Channel;
@@ -13,10 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 
 /**
@@ -26,13 +23,13 @@ public class JClientChannelHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JClientChannelHandler.class);
 
-    private static final SimpleDateFormat SDF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         // 定时发送消息
-        ctx.channel().eventLoop().scheduleAtFixedRate(()->
-            ctx.writeAndFlush(new Message(UUID.randomUUID().toString(), SDF.format(new Date()))) , 0, 3, TimeUnit.SECONDS);
+//        ctx.channel().eventLoop().scheduleAtFixedRate(()->
+//            ctx.writeAndFlush(new Message(UUID.randomUUID().toString(), SDF.format(new Date()))) , 0, 3, TimeUnit.SECONDS);
     }
 
     @Override
@@ -53,7 +50,7 @@ public class JClientChannelHandler extends ChannelInboundHandlerAdapter {
                 // 写超时则需要写入心跳
                 InetSocketAddress local = (InetSocketAddress) ctx.channel().localAddress();
                 String clientAddress = local.getHostString() + ":" + local.getPort();
-                ctx.writeAndFlush(new HeatBeat(clientAddress, SDF.format(new Date())));
+                ctx.writeAndFlush(new HeatBeat(clientAddress, LocalDateTime.now().format(formatter)));
             }
         } else {
             super.userEventTriggered(ctx, evt);

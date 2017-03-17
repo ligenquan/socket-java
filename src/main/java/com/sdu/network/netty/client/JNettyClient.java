@@ -17,6 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,7 +39,9 @@ public class JNettyClient {
     private ChannelFuture channelFuture;
 
     public void start(int workerThreadNum, boolean ePoll, String host, int port) {
+        // EventLooGroup负责管理EventLoop
         workerGroup = JNettyUtils.createEventLoopGroup(ePoll, workerThreadNum, "netty-client-thread-%d");
+
         // Bootstrap是Client启动辅助类
         Bootstrap bootstrap = new Bootstrap();
 
@@ -49,7 +54,7 @@ public class JNettyClient {
                  .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
                  .option(ChannelOption.TCP_NODELAY, true)
                  .option(ChannelOption.SO_KEEPALIVE, true);
-        // 初始化ChannelHandler[线程不安全]
+
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel ch) throws Exception {
@@ -80,6 +85,14 @@ public class JNettyClient {
 
     }
 
+    public EventLoop eventLoop() {
+        return channelFuture.channel().eventLoop();
+    }
+
+    public ChannelFuture writeAndFlush(Object msg) {
+        return channelFuture.channel().writeAndFlush(msg);
+    }
+
     public void stop() {
         if (channelFuture != null) {
             channelFuture.channel().closeFuture().awaitUninterruptibly(10, TimeUnit.SECONDS);
@@ -95,6 +108,14 @@ public class JNettyClient {
         String host = JNettyUtils.getIpV4();
         JNettyClient client = new JNettyClient();
         client.start(10, false, host, 6712);
+
+
+        // 定时发送数据
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        client.eventLoop().scheduleAtFixedRate(() -> {
+            Message msg = new Message(UUID.randomUUID().toString(), LocalDateTime.now().format(formatter));
+            client.writeAndFlush(msg);
+        }, 1, 1, TimeUnit.SECONDS);
 
         TimeUnit.MINUTES.sleep(30);
         client.stop();
