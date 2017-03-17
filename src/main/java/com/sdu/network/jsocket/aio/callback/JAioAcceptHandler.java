@@ -39,6 +39,7 @@ public class JAioAcceptHandler implements CompletionHandler<AsynchronousSocketCh
                 socketChannel.close();
                 return;
             }
+
             // socket参数设置
             socketChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
             socketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);

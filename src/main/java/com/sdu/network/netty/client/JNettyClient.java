@@ -75,6 +75,7 @@ public class JNettyClient {
                 LOGGER.error("connect failure !");
             }
         });
+
         channelFuture.syncUninterruptibly();
 
     }

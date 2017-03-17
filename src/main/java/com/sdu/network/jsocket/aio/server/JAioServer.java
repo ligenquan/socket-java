@@ -31,13 +31,20 @@ public class JAioServer {
         ThreadFactory threadFactory = JSocketUtils.buildThreadFactory("aio-io-event-thread-%d", false);
         AsynchronousChannelGroup asyncChannelGroup = AsynchronousChannelGroup.withFixedThreadPool(args.getIoThreads(), threadFactory);
         asyncServerChannel = AsynchronousServerSocketChannel.open(asyncChannelGroup);
+
         // Note:
-        //  AsynchronousServerSocketChannel在监听端口前设置:SO_RCVBUF/SO_SNDBUF
-        //  原因: 在监听端口生成的AsynchronousSocketChannel继承AsynchronousServerSocketChannel的设置
+        //  1: AsynchronousServerSocketChannel在监听端口前设置:SO_RCVBUF
+        //     在监听端口生成的AsynchronousSocketChannel继承AsynchronousServerSocketChannel的设置
+        //  2: AsynchronousServerSocketChannel可设置Socket选项
+        //     SO_RCVBUF/SO_REUSEADDR
         asyncServerChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
         asyncServerChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
-        asyncServerChannel.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
+
+        // AsynchronousServerSocketChannel.open()并没有绑定监听地址
+        // 若AsynchronousServerSocketChannel没有绑定监听地址, 调用accept()抛出异常: NotYetBoundException
         asyncServerChannel.bind(args.getBindAddress(), args.getBacklog());
+
+        //
         asyncServerChannel.accept(asyncServerChannel, new JAioAcceptHandler(args.getReadBufferSize()));
 
         asyncChannelGroup.awaitTermination(1, TimeUnit.MINUTES);

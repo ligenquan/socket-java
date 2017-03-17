@@ -69,13 +69,13 @@ public class JAioServerReadHandler implements CompletionHandler<Integer, ByteBuf
 
                     });
                 }
+
                 // 递归方式监听客户端发送的数据
                 socketChannel.read(attachment, attachment, this);
             } else {
                 // result = -1, 客户端已关闭连接
                 LOGGER.info("客户端{}关闭连接, 线程[{}]关闭异步Socket通道", clientAddress, threadName);
                 socketChannel.close();
-                attachment = null;
             }
         } catch (Exception e) {
             LOGGER.info("read exception", e);
@@ -87,8 +87,4 @@ public class JAioServerReadHandler implements CompletionHandler<Integer, ByteBuf
 
     }
 
-
-    private void doReadBuffer(ByteBuffer buffer) {
-        buffer.flip();
-    }
 }
