@@ -12,6 +12,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.*;
@@ -29,12 +33,15 @@ public class JAioConnectHandler implements CompletionHandler<Void, AsynchronousS
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JAioConnectHandler.class);
 
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private int readBufferSize;
 
     private ScheduledExecutorService scheduledExecutorService;
 
     private KryoSerializer serializer;
     private JSocketDataEncoder encoder;
+
 
     public JAioConnectHandler(int readBufferSize, KryoSerializer serializer) {
         this.readBufferSize = readBufferSize;
@@ -52,13 +59,13 @@ public class JAioConnectHandler implements CompletionHandler<Void, AsynchronousS
                 return;
             }
 
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
             scheduledExecutorService.scheduleAtFixedRate(() -> {
                 if (!attachment.isOpen()) {
                     System.exit(1);
                     return;
                 }
-                Message msg = new Message(UUID.randomUUID().toString(), sdf.format(new Date()));
+
+                Message msg = new Message(UUID.randomUUID().toString(), LocalDateTime.now().format(formatter));
                 ByteBuffer buffer = ByteBuffer.allocate(1024);
                 encoder.encode(msg, buffer);
                 Future<Integer> future = attachment.write(buffer);
@@ -82,4 +89,7 @@ public class JAioConnectHandler implements CompletionHandler<Void, AsynchronousS
 
     }
 
+    public static void main(String[] args) {
+        System.out.println(LocalDateTime.now().format(formatter));
+    }
 }
