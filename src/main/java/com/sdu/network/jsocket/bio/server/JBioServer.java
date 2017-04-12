@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -87,17 +86,19 @@ public class JBioServer {
 
         @Override
         public void run() {
-            try {
-                streamHandler.read(socket);
-            } catch (IOException e) {
-                // socket关闭/socket尚未连接/socket流关闭
-                LOGGER.info("客户端{}关闭连接", JSocketUtils.getClientAddress((InetSocketAddress) socket.getRemoteSocketAddress()));
+            for (;;) {
                 try {
-                    socket.close();
-                } catch (IOException ex) {
-                    // ignore
+                    streamHandler.read(socket);
+                } catch (IOException e) {
+                    // socket关闭/socket尚未连接/socket流关闭
+                    LOGGER.info("客户端{}关闭连接", JSocketUtils.getClientAddress((InetSocketAddress) socket.getRemoteSocketAddress()));
+                    try {
+                        socket.close();
+                    } catch (IOException ex) {
+                        // ignore
+                    }
+                    threads.remove(this);
                 }
-                threads.remove(this);
             }
         }
 
@@ -119,7 +120,7 @@ public class JBioServer {
             @Override
             public void read(Socket socket) throws IOException {
                 List<Object> msgList = decoder.decode(new DataInputStream(socket.getInputStream()));
-                if (msgList == null) {
+                if (msgList == null || msgList.size() == 0) {
                     return;
                 }
                 msgList.forEach(object -> {

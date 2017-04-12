@@ -13,13 +13,10 @@ import org.slf4j.LoggerFactory;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -77,7 +74,7 @@ public class JBioClient {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
             // 序列化及拆包粘包处理
-            KryoSerializer serializer = new KryoSerializer(MessageAck.class, Message.class);
+            KryoSerializer serializer = new KryoSerializer(Message.class, MessageAck.class);
             JSocketDataDecoder decoder = new JSocketDataDecoder(serializer);
             JSocketDataEncoder encoder = new JSocketDataEncoder(serializer);
 
@@ -108,36 +105,37 @@ public class JBioClient {
         client.start("127.0.0.1", 6712);
 
         // 写线程
-//        Thread writeThread = new Thread() {
-//            @Override
-//            public void run() {
-//                for (;;) {
-//                    try {
-//                        client.write();
-//                    } catch (IOException e) {
-//
-//                    }
-//
-//                }
-//            }
-//        };
-//        writeThread.start();
-        client.write();
+        Thread writeThread = new Thread() {
+            @Override
+            public void run() {
+                for (;;) {
+                    try {
+                        TimeUnit.SECONDS.sleep(1);
+                        client.write();
+                    } catch (Exception e) {
+
+                    }
+
+                }
+            }
+        };
+        writeThread.start();
+//        client.write();
 
         // 读线程
-//        Thread readThread = new Thread(){
-//            @Override
-//            public void run() {
-//                for (;;) {
-//                    try {
-//                        client.read();
-//                    } catch (IOException e) {
-//
-//                    }
-//                }
-//            }
-//        };
-//        readThread.start();
+        Thread readThread = new Thread(){
+            @Override
+            public void run() {
+                for (;;) {
+                    try {
+                        client.read();
+                    } catch (IOException e) {
+
+                    }
+                }
+            }
+        };
+        readThread.start();
 
     }
 
