@@ -2,9 +2,13 @@ package com.sdu.network.codec;
 
 import com.google.common.collect.Lists;
 import com.sdu.network.serializer.KryoSerializer;
+import com.sun.corba.se.spi.ior.ObjectKey;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -55,6 +59,36 @@ public class JSocketDataDecoder {
 
         if (read) {
             buffer.compact();
+        }
+
+        return msgList;
+    }
+
+    public List<Object> decode(InputStream inputStream) throws IOException {
+        List<Object> msgList = Lists.newLinkedList();
+
+        while (inputStream.available() >= 0) {
+            // 标记InputStream读取位置, 当发送读半包时, InputStream重置
+            inputStream.mark(inputStream.available());
+            if (inputStream.available() < SOCKET_HEAD_LENGTH) {
+                // 头部不足4个字节
+                break;
+            }
+
+            // 读取头部
+            int bodyLength = inputStream.read();
+            if (inputStream.available() < bodyLength) {
+                // 发生读半包, InputStream重置
+                inputStream.reset();
+                break;
+            }
+
+            // 读取包体
+            byte []body = new byte[bodyLength];
+            inputStream.read(body);
+            // 序列化为对象
+            Object obj = serializer.decode(body);
+            msgList.add(obj);
         }
 
         return msgList;

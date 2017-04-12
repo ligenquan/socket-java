@@ -11,6 +11,7 @@ import org.objenesis.strategy.StdInstantiatorStrategy;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 /**
@@ -83,6 +84,29 @@ public class KryoSerializer {
             int dataLength = body.length;
             buffer.putInt(dataLength);
             buffer.put(body);
+        } finally {
+            close(byteArrayOutputStream, output);
+        }
+    }
+
+    public void encode(final OutputStream outputStream, final Object message) throws IOException {
+        ByteArrayOutputStream byteArrayOutputStream = null;
+        Output output = null;
+        try {
+            byteArrayOutputStream = new ByteArrayOutputStream();
+            // 序列化
+            Kryo kryo = kryoSerializerPool.borrow();
+            output = new Output(byteArrayOutputStream);
+            kryo.writeClassAndObject(output, message);
+            output.flush();
+
+            kryoSerializerPool.release(kryo);
+
+            // 输出编码: 数据包头 + 数据包长度
+            byte[] body = byteArrayOutputStream.toByteArray();
+            int dataLength = body.length;
+            outputStream.write(dataLength);
+            outputStream.write(body);
         } finally {
             close(byteArrayOutputStream, output);
         }

@@ -4,6 +4,7 @@ package com.sdu.network.codec;
 import com.sdu.network.serializer.KryoSerializer;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 /**
@@ -27,6 +28,13 @@ public class JSocketDataEncoder {
         } catch (Exception e) {
             // ignore
         }
+    }
 
+    public void encode(Object msg, OutputStream outputStream) {
+        try {
+            serializer.encode(outputStream, msg);
+        } catch (IOException e) {
+            // ignore
+        }
     }
 }
