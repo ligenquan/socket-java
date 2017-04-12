@@ -40,19 +40,21 @@
 
     1': 阻塞IO
 
-      应用进程                                                               内核
-                                      系统调用
-      recvfrom    ---------------------------------------------------->  无数据准备         ------+
-                                                                            |                   |
-                                                                            |                   | 等待数据
-                                                                            |                   |
-                                                                           \|/                  |
-                                                                    数据报准备好并复制数据包   ------+
-                                                                            |                   |
-                                                                            |                   | 数据从内核拷贝
-                                                                            |                   | 到用户空间
-                                      返回成功指示                            \|/           ------+
-      处理数据报    <----------------------------------------------------   复制完成
+      同步阻塞IO模型是最常用的一个模型, 也是最简单的模型. 在Linux中默认情况下所有的socket都是blocking, 流程如图所示:
+
+      应用进程                                    内核
+                        System call
+      recvfrom    ----------------------->  no ready data    ------+
+                                                |                   |
+                                                |                   | wait data
+                                                |                   |
+                                               \|/                  |
+                                            ready data        ------+
+                                                |                   |
+                                                |                   | copy data from kernel
+                                                |                   | to user space
+                        Return                 \|/            ------+
+      handle data <----------------------   copy finsh
 
       描述:
 
@@ -72,29 +74,99 @@
 
       在linux下, 可通过设置socket为non-blocking, 当对non-blocking socket执行读操作时, 流程如图所示:
 
-                           应用进程                                    内核
-                 +-----                      System call
-                 |         recvfrom    ------------------------>   NO Ready Data ----+
-                 |                           EWOULDBLOCK                             |
-                 |                     <------------------------                     |
-                 |                            System call                            |
-                 |         recvfrom    ------------------------>   NO Ready Data     |  等待数据
-                 |                           EWOULDBLOCK                             |
-      进程反复调用 |                     <------------------------                     |
-      recvfrom等 |                            System call                            |
-      待返回成功指 |          recvfrom   ------------------------>   Ready Data   -----+
-      示(轮询)    |                                                                   |
-                 |                                                 Copy Data         |
-                 |                                                     |             | 数据从内核拷贝到用户空间
-                 |                                                     |             |
-                 |                                                     |             |
-                 |                            Return Success          \|/            |
-                 +------   Data Process <------------------------   Copy Finsh  -----+
+                           应用进程                                     内核
+                  +-----                      System call
+                  |         recvfrom    ------------------------>   no ready data ----+
+                  |                           EWOULDBLOCK                             |
+                  |                     <------------------------                     |
+                  |                                                                   |
+                  |                            System call                            |
+                  |         recvfrom    ------------------------>   no ready data     |  wait data(轮询)
+                  |                           EWOULDBLOCK                             |
+      repeat call |                     <------------------------                     |
+      recvfrom and|                                                                   |
+      wait success|                             System call                           |
+                  |          recvfrom   ------------------------>   ready data   -----+
+                  |                                                                   |
+                  |                                                 copy data         |
+                  |                                                     |             | copy data from kernel
+                  |                                                     |             | to user space
+                  |                                                     |             |
+                  |                            Return Success          \|/            |
+                  +------   handle data <------------------------   copy finsh  ------+
 
-    3': 多路复用IO
+      Note:
 
+        优点: 能够在等待任务完成的时间里完成其他任务
+
+        缺点: 任务完成的响应延迟增加, 因为轮询READ
+
+    3': 多路复用IO(也称为Event Driver IO)
+
+        IO多路复用有两个特别的系统调用: select、poll、epoll.
+
+        select是内核级别的, select轮询相对非阻塞的轮询的区别在于: select可轮询多个socket实现同时对多个IO端口进行监听. 任何socket
+
+        的数据准好了就能返回进行可读, 然后进程再进行recvform系统调用将数据由内核拷贝到用户进程, 当然这个过程是阻塞的.
+
+        select或poll调用之后会阻塞进程, 与blocking IO阻塞不同在于: 此时的select不是等socket数据全部到达再处理而是有了部分数据就会
+
+        调用用户进程来处理(Socket数据由系统内核监视).
+
+        Note:
+
+          a: 用户进程调用select系统调用则用户进程会被阻塞, 直到系统内核监控到有数据, select操作返回. 用户进程调用read操作将数据从
+
+             内核拷贝到用户进程
+
+          b: 若是连接数不是很高, 多路复用IO并一定比同步非阻塞性能更好
+
+                              应用进程                              内核
+                                               System call
+                      +-----  select()  -----------------------> no ready data  -------+
+                      |                                               |                |
+                      |                                               |                |
+        select socket |                                               |                |  wait data
+        and process   |                                               |                |
+        block         |                         Return               \|/               |
+                      +-----            <-----------------------   ready data   -------+
+                                              System call
+                      +----- recvfrom() ------------------------>  copy data    -------+
+                      |                                               |                |
+        copy data and |                                               |                | copy data from kernel
+        process block |                                               |                | to user space
+                      |                          Return              \|/               |
+                      +----- handle data <----------------------   copy finsh   -------+
 
 
     4': 信号驱动IO
 
+
+
   2: 异步IO模型
+
+    用户进程调用aio_read系统调用后, 无论内核数据是否准备好都会直接返回给用户进程. 当socket数据准备好, 内核直接复制数据给进程, 如下:
+
+                             应用进程                               内核
+                                             System call
+                    +----               -------------------->   no ready data   ------+
+                    |      aio_read()          return                |                |
+                    |                   <--------------------        |                | wait data
+    process execute |                                                |                |
+                    |                                               \|/               |
+                    |                                            ready data      -----+
+                    |
+                    |                                            copy data       -----+
+                    |                                                |                |
+                    |                                                |                |copy data from kernel
+                    |                                                |                |to user space
+                    |                     submit aio_read's         \|/               |
+                    +---- handle data   <-------------------    copy finsh       -----+
+                                              signal
+    描述:
+
+    用户进程调用aio_read()后立刻就可以开始去做其它的事. 当内核接收到asynchronous read后它会立刻返回并不会阻塞用户进程. 内核会等待
+
+    数据准备完成, 将准备完成的数据拷贝到用户内存. 拷贝完成后内核会给用户进程发送signal或执行基于线程的回调函数来完成这次IO处理过程, 告
+
+    诉它read操作完成.
