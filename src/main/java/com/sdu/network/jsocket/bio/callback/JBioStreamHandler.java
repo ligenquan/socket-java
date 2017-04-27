@@ -4,6 +4,10 @@ import java.io.IOException;
 import java.net.Socket;
 
 /**
+ * Note:
+ *
+ *  {@link java.io.ObjectInputStream}
+ *
  * @author hanhan.zhang
  * */
 public interface JBioStreamHandler {
