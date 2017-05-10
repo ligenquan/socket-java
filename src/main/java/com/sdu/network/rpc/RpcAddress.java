@@ -1,6 +1,7 @@
 package com.sdu.network.rpc;
 
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 import java.net.URI;
 
@@ -10,6 +11,7 @@ import java.net.URI;
  * @author hanhan.zhang
  * */
 @AllArgsConstructor
+@Getter
 public class RpcAddress {
 
     private String host;
@@ -22,6 +24,25 @@ public class RpcAddress {
 
     public String toRpcURL() {
         return "rpc://" + hostPort();
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) return true;
+        if (object == null || getClass() != object.getClass()) return false;
+
+        RpcAddress that = (RpcAddress) object;
+
+        if (port != that.port) return false;
+        return host != null ? host.equals(that.host) : that.host == null;
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = host != null ? host.hashCode() : 0;
+        result = 31 * result + port;
+        return result;
     }
 
     public static RpcAddress fromURI(String rpcURL) {

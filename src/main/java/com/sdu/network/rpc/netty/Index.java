@@ -1,5 +1,7 @@
-package com.sdu.network.rpc;
+package com.sdu.network.rpc.netty;
 
+import com.sdu.network.rpc.RpcEndPoint;
+import com.sdu.network.rpc.RpcEndPointRef;
 import com.sdu.network.rpc.netty.Dispatcher;
 import com.sdu.network.rpc.netty.IndexMessage;
 

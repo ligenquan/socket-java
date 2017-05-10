@@ -1,7 +1,5 @@
 package com.sdu.network.rpc;
 
-import java.util.concurrent.Future;
-
 /**
  *
  * @author hanhan.zhang

@@ -1,14 +1,19 @@
 package com.sdu.network.rpc.netty;
 
 import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.sdu.network.rpc.*;
+import com.sdu.network.rpc.RpcAddress;
+import com.sdu.network.rpc.RpcConfig;
+import com.sdu.network.rpc.RpcEndPoint;
+import com.sdu.network.rpc.RpcEndPointRef;
+import com.sdu.network.utils.ThreadUtils;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * {@link Dispatcher}路由消息给适合的{@link }
@@ -49,14 +54,11 @@ public class Dispatcher {
     public Dispatcher(NettyRpcEnv nettyRpcEnv, RpcConfig rpcConfig) {
         this.nettyRpcEnv = nettyRpcEnv;
 
-        ThreadFactory factory = new ThreadFactoryBuilder().setNameFormat("dispatcher-event-loop-%d")
-                                                          .setDaemon(true)
-                                                          .build();
         int threads = rpcConfig.getDispatcherThreads();
         if (threads <= 0) {
             threads = DEFAULT_DISPATCHER_THREADS;
         }
-        pool = new ThreadPoolExecutor(threads, threads, 5, TimeUnit.SECONDS, new SynchronousQueue<>(), factory);
+        pool = ThreadUtils.newDaemonCachedThreadPool("dispatcher-event-loop-%d", threads, 60);
         for (int i = 0; i < threads; ++i) {
             pool.execute(new MessageLoop());
         }
@@ -67,7 +69,7 @@ public class Dispatcher {
      * */
     public NettyRpcEndPointRef registerRpcEndPoint(String name, RpcEndPoint endPoint) {
         RpcAddress address = nettyRpcEnv.address();
-        NettyRpcEndPointRef endPointRef = new NettyRpcEndPointRef(address, nettyRpcEnv);
+        NettyRpcEndPointRef endPointRef = new NettyRpcEndPointRef(name, address, nettyRpcEnv);
         synchronized (this) {
             if (stopped) {
                 throw new IllegalStateException("RpcEnv has stopped");
