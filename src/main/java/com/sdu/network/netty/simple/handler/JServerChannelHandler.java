@@ -1,4 +1,4 @@
-package com.sdu.network.netty.handler;
+package com.sdu.network.netty.simple.handler;
 
 import com.google.common.collect.Maps;
 import com.sdu.network.bean.HeatBeat;

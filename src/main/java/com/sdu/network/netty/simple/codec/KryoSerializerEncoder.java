@@ -1,4 +1,4 @@
-package com.sdu.network.netty.codec;
+package com.sdu.network.netty.simple.codec;
 
 
 import com.sdu.network.serializer.KryoSerializer;

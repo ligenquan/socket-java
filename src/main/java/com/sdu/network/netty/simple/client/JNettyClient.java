@@ -1,12 +1,12 @@
-package com.sdu.network.netty.client;
+package com.sdu.network.netty.simple.client;
 
 import com.sdu.network.bean.HeatBeat;
 import com.sdu.network.bean.Message;
 import com.sdu.network.bean.MessageAck;
-import com.sdu.network.netty.codec.KryoSerializerDecoder;
-import com.sdu.network.netty.codec.KryoSerializerEncoder;
+import com.sdu.network.netty.simple.codec.KryoSerializerDecoder;
+import com.sdu.network.netty.simple.codec.KryoSerializerEncoder;
 import com.sdu.network.serializer.KryoSerializer;
-import com.sdu.network.netty.handler.JClientChannelHandler;
+import com.sdu.network.netty.simple.handler.JClientChannelHandler;
 import com.sdu.network.netty.utils.JNettyUtils;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
