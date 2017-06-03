@@ -1,4 +1,8 @@
-一: ByteBuf API
+一: ByteBuf重写背景
+
+
+
+二: ByteBuf API
 
   ByteBuf有readerIndex, writerIndex两位置指针, 其关系如下:
 
@@ -51,3 +55,9 @@
       +------------------+--------------------------------------+
       |                  |                                      |
       readerIndex (0) <= writerIndex (decreased)        <=        capacity
+
+三: ByteBuf内存池
+
+四: ByteBuf内存检测
+
+  Netty使用引用计数实现对资源的管理(ReferenceCounted定义对象引用信息), ByteBuf继承ReferenceCounted接口.
